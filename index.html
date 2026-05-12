@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LoopDec</title>
+  <style>
+    /* ── Reset ─────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── Color system (OKLCH) ──────────────────────────────── */
+    :root {
+      --bg-deep:      oklch(0.09 0.006 60);
+      --bg-base:      oklch(0.125 0.005 60);
+      --bg-surface:   oklch(0.165 0.005 60);
+      --bg-elevated:  oklch(0.21 0.004 60);
+      --bg-hover:     oklch(0.25 0.004 60);
+
+      --text-primary:   oklch(0.87 0.004 60);
+      --text-secondary: oklch(0.52 0.006 60);
+      --text-muted:     oklch(0.36 0.005 60);
+
+      --accent:       oklch(0.67 0.15 18);
+      --accent-hover: oklch(0.72 0.17 18);
+      --accent-muted: oklch(0.42 0.07 18);
+
+      --playing:      oklch(0.62 0.12 155);
+      --playing-dim:  oklch(0.35 0.06 155);
+
+      --border:       oklch(0.19 0.004 60);
+      --border-subtle:oklch(0.155 0.003 60);
+
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      --font-mono: "SF Mono", "Cascadia Mono", "Menlo", "Consolas", monospace;
+    }
+
+    /* ── Body ──────────────────────────────────────────────── */
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      line-height: 1.4;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Titlebar ──────────────────────────────────────────── */
+    #titlebar {
+      -webkit-app-region: drag;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 8px;
+      height: 40px;
+      flex-shrink: 0;
+      background: var(--bg-base);
+      border-bottom: 1px solid var(--border);
+      user-select: none;
+    }
+
+    /* ── Custom window controls ────────────────────────────── */
+    .win-controls {
+      -webkit-app-region: no-drag;
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+      align-items: center;
+    }
+
+    .win-btn {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: none;
+      cursor: pointer;
+      transition: opacity 0.12s ease-out;
+      opacity: 0.8;
+    }
+
+    .win-btn:hover { opacity: 1; }
+
+    .win-close { background: oklch(0.62 0.2 25); }
+    .win-minimize { background: oklch(0.72 0.16 85); }
+    .win-maximize { background: oklch(0.62 0.14 150); }
+
+    .win-controls:hover .win-btn { opacity: 1; }
+
+    #app-title {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    #deck-name {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 200px;
+    }
+
+    #url-form {
+      -webkit-app-region: no-drag;
+      flex: 1;
+      max-width: 560px;
+      display: flex;
+      margin: 0 auto;
+    }
+
+    #url-input {
+      flex: 1;
+      height: 32px;
+      padding: 0 12px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.15s ease-out;
+    }
+
+    #url-input::placeholder { color: var(--text-muted); }
+    #url-input:focus { border-color: var(--accent-muted); }
+
+    /* ── Master transport ──────────────────────────────────── */
+    #master-transport {
+      -webkit-app-region: no-drag;
+      display: flex;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    .transport-btn {
+      width: 36px;
+      height: 32px;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      background: var(--bg-elevated);
+      color: var(--text-secondary);
+      font-size: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.12s ease-out, color 0.12s ease-out;
+      line-height: 1;
+    }
+
+    .transport-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    #play-all-btn:hover { color: var(--playing); }
+    #stop-all-btn:hover { color: var(--accent); }
+
+    #play-all-btn.active {
+      background: var(--playing-dim);
+      color: var(--playing);
+      border-color: var(--playing-dim);
+    }
+
+    /* ── Clips container ───────────────────────────────────── */
+    #clips-container {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 12px;
+      transition: padding-bottom 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    body.waveform-open #clips-container {
+      padding-bottom: 252px;
+    }
+
+    #clips-container::-webkit-scrollbar { width: 6px; }
+    #clips-container::-webkit-scrollbar-track { background: transparent; }
+    #clips-container::-webkit-scrollbar-thumb { background: var(--bg-elevated); border-radius: 3px; }
+
+    /* ── Tiles grid ────────────────────────────────────────── */
+    .tiles-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 10px;
+    }
+
+    /* ── Empty state ───────────────────────────────────────── */
+    #empty-state {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--text-muted);
+      font-size: 14px;
+      user-select: none;
+      grid-column: 1 / -1;
+    }
+
+    #empty-state.hidden { display: none; }
+
+    /* ── Tile ──────────────────────────────────────────────── */
+    .tile {
+      background: var(--bg-surface);
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid var(--border-subtle);
+      transition: border-color 0.15s ease-out, opacity 0.2s ease-out;
+    }
+
+    .tile:hover {
+      border-color: var(--bg-hover);
+    }
+
+    .tile[data-state="playing"] {
+      border-color: var(--playing-dim);
+    }
+
+    .tile[data-enabled="false"] {
+      opacity: 0.35;
+    }
+
+    .tile.editing {
+      border-color: var(--accent-muted);
+    }
+
+    /* ── Tile video ────────────────────────────────────────── */
+    .tile-video {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      overflow: hidden;
+      position: relative;
+      background: var(--bg-elevated);
+    }
+
+    .tile-video video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .tile[data-enabled="false"] .tile-video video {
+      filter: grayscale(1) brightness(0.5);
+    }
+
+    .tile-video-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      background: oklch(0.09 0.006 60 / 0.5);
+      opacity: 0;
+      transition: opacity 0.15s ease-out;
+    }
+
+    .tile-video:hover .tile-video-overlay { opacity: 1; }
+
+    .tile-video-overlay span {
+      font-size: 20px;
+      color: var(--text-primary);
+    }
+
+    /* ── Tile download state ───────────────────────────────── */
+    .tile-download {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .tile-download-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .tile-progress-track {
+      width: 64px;
+      height: 3px;
+      background: var(--bg-hover);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .tile-progress-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 2px;
+      width: 0%;
+      transition: width 0.3s ease-out;
+    }
+
+    /* ── Tile body ─────────────────────────────────────────── */
+    .tile-body {
+      padding: 6px 8px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .tile-title {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.3;
+    }
+
+    .tile-times {
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      padding: 0 1px;
+    }
+
+    .tile-time-current {
+      color: var(--text-secondary);
+    }
+
+    .tile[data-state="playing"] .tile-time-current {
+      color: var(--playing);
+    }
+
+    /* ── Tile loop indicator (read-only) ───────────────────── */
+    .tile-loop-indicator {
+      height: 4px;
+      background: var(--bg-elevated);
+      border-radius: 2px;
+      position: relative;
+      overflow: visible;
+    }
+
+    .tile-loop-region {
+      position: absolute;
+      top: 0;
+      height: 100%;
+      background: var(--accent-muted);
+      border-radius: 2px;
+      transition: background 0.15s ease-out;
+    }
+
+    .tile[data-state="playing"] .tile-loop-region {
+      background: var(--playing-dim);
+    }
+
+    .tile-loop-playhead {
+      position: absolute;
+      top: -2px;
+      width: 2px;
+      height: 8px;
+      background: var(--text-primary);
+      border-radius: 1px;
+      transform: translateX(-1px);
+      pointer-events: none;
+      opacity: 0;
+    }
+
+    .tile[data-state="playing"] .tile-loop-playhead {
+      opacity: 1;
+    }
+
+    /* ── Tile volume slider ─────────────────────────────────── */
+    .tile-volume {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 4px;
+      background: var(--bg-elevated);
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .tile-volume::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--text-secondary);
+      cursor: pointer;
+      transition: background 0.1s ease-out;
+    }
+
+    .tile-volume::-webkit-slider-thumb:hover {
+      background: var(--text-primary);
+    }
+
+    .tile[data-state="playing"] .tile-volume::-webkit-slider-thumb {
+      background: var(--playing);
+    }
+
+    /* ── Tile controls ─────────────────────────────────────── */
+    .tile-controls {
+      display: flex;
+      gap: 3px;
+    }
+
+    .tile-btn {
+      width: 22px;
+      height: 20px;
+      border: none;
+      border-radius: 3px;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 11px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.1s ease-out;
+      padding: 0;
+      line-height: 1;
+    }
+
+    .tile-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-secondary);
+    }
+
+    .tile-btn.tile-toggle {
+      font-size: 8px;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .tile-btn.tile-toggle.enabled {
+      color: var(--playing);
+    }
+
+    .tile-btn.tile-mute-btn.muted {
+      color: var(--accent);
+    }
+
+    .tile-btn.tile-remove:hover {
+      color: var(--accent);
+    }
+
+    .tile-btn.tile-edit-btn:hover {
+      color: var(--accent);
+    }
+
+    /* ── Tile error ────────────────────────────────────────── */
+    .tile-error {
+      color: var(--accent);
+      font-size: 10px;
+      padding: 8px;
+      word-break: break-word;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+    }
+
+    /* ── Waveform panel ────────────────────────────────────── */
+    #waveform-panel {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 240px;
+      background: var(--bg-base);
+      border-top: 1px solid var(--border);
+      transform: translateY(100%);
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      padding: 0 16px 12px;
+    }
+
+    #waveform-panel.open {
+      transform: translateY(0);
+    }
+
+    #waveform-header {
+      display: flex;
+      align-items: center;
+      height: 36px;
+      flex-shrink: 0;
+      gap: 12px;
+    }
+
+    #waveform-title {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    #waveform-times {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      gap: 16px;
+    }
+
+    #waveform-close {
+      width: 24px;
+      height: 24px;
+      border: none;
+      border-radius: 4px;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 15px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.12s ease-out;
+    }
+
+    #waveform-close:hover {
+      background: var(--bg-hover);
+      color: var(--accent);
+    }
+
+    #waveform-snap {
+      display: flex;
+      gap: 2px;
+      flex-shrink: 0;
+    }
+
+    .snap-btn {
+      height: 22px;
+      padding: 0 7px;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      background: var(--bg-elevated);
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      cursor: pointer;
+      transition: all 0.1s ease-out;
+    }
+
+    .snap-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-secondary);
+    }
+
+    .snap-btn.active {
+      background: var(--accent-muted);
+      color: var(--text-primary);
+      border-color: var(--accent-muted);
+    }
+
+    #snap-custom {
+      width: 52px;
+      height: 22px;
+      padding: 0 5px;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      outline: none;
+    }
+
+    #snap-custom:focus {
+      border-color: var(--accent-muted);
+    }
+
+    #snap-custom.active {
+      border-color: var(--accent-muted);
+      background: var(--accent-muted);
+    }
+
+    #waveform-offset {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    #waveform-offset label {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    #snap-offset {
+      width: 56px;
+      height: 22px;
+      padding: 0 5px;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      outline: none;
+    }
+
+    #snap-offset:focus {
+      border-color: var(--accent-muted);
+    }
+
+    #snap-offset-tap {
+      height: 22px;
+      padding: 0 7px;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      background: var(--bg-elevated);
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      cursor: pointer;
+      transition: all 0.1s ease-out;
+    }
+
+    #snap-offset-tap:hover {
+      background: var(--bg-hover);
+      color: var(--text-secondary);
+    }
+
+    #waveform-minimap {
+      width: 100%;
+      height: 20px;
+      background: var(--bg-elevated);
+      border-radius: 3px;
+      position: relative;
+      cursor: pointer;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    #waveform-minimap canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .minimap-viewport {
+      position: absolute;
+      top: 0;
+      height: 100%;
+      background: rgba(190, 95, 75, 0.15);
+      border-left: 1px solid rgba(190, 95, 75, 0.5);
+      border-right: 1px solid rgba(190, 95, 75, 0.5);
+      pointer-events: none;
+    }
+
+    #waveform-canvas {
+      flex: 1;
+      width: 100%;
+      min-height: 0;
+      display: block;
+      border-radius: 4px;
+      cursor: crosshair;
+    }
+
+    /* ── Command palette ────────────────────────────────────── */
+    #cmd-overlay {
+      position: fixed;
+      inset: 0;
+      background: oklch(0.09 0.006 60 / 0.7);
+      z-index: 200;
+      display: none;
+      align-items: flex-start;
+      justify-content: center;
+      padding-top: 120px;
+    }
+
+    #cmd-overlay.open {
+      display: flex;
+    }
+
+    #cmd-palette {
+      width: 480px;
+      max-width: calc(100vw - 32px);
+      background: var(--bg-base);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 16px 48px oklch(0.05 0.006 60 / 0.6);
+    }
+
+    #cmd-input {
+      width: 100%;
+      height: 44px;
+      padding: 0 16px;
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      outline: none;
+    }
+
+    #cmd-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    #cmd-results {
+      max-height: 320px;
+      overflow-y: auto;
+    }
+
+    .cmd-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 16px;
+      cursor: pointer;
+      transition: background 0.08s ease-out;
+    }
+
+    .cmd-item:hover, .cmd-item.active {
+      background: var(--bg-elevated);
+    }
+
+    .cmd-item-label {
+      font-size: 13px;
+      color: var(--text-primary);
+    }
+
+    .cmd-item-hint {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .cmd-separator {
+      height: 1px;
+      background: var(--border);
+      margin: 4px 16px;
+    }
+
+    .cmd-item-label .cmd-sublabel {
+      color: var(--text-muted);
+      font-size: 11px;
+      margin-left: 6px;
+    }
+
+    /* ── Draggable number input ────────────────────────────── */
+    .drag-number {
+      cursor: ew-resize;
+    }
+
+    /* ── Focus styles ──────────────────────────────────────── */
+    button:focus-visible, input:focus-visible {
+      outline: 2px solid var(--accent-muted);
+      outline-offset: 1px;
+    }
+
+    button, .tile-btn, .tile-loop-indicator, .tile-title {
+      user-select: none;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .tile[data-state="downloading"] .tile-download-label {
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+  </style>
+</head>
+<body>
+  <header id="titlebar">
+    <div class="win-controls">
+      <button class="win-btn win-close" id="win-close" title="Close"></button>
+      <button class="win-btn win-minimize" id="win-minimize" title="Minimize"></button>
+      <button class="win-btn win-maximize" id="win-maximize" title="Maximize"></button>
+    </div>
+    <span id="app-title">LoopDec</span>
+    <span id="deck-name"></span>
+    <form id="url-form" autocomplete="off">
+      <input
+        id="url-input"
+        type="url"
+        placeholder="Paste a YouTube URL and press Enter"
+        spellcheck="false"
+        autofocus
+      />
+    </form>
+    <div id="master-transport">
+      <button class="transport-btn" id="play-all-btn" title="Play all">&#9654;</button>
+      <button class="transport-btn" id="stop-all-btn" title="Stop all">&#9632;</button>
+      <button class="transport-btn" id="sync-btn" title="Sync all to loop start">&#8635;</button>
+    </div>
+  </header>
+
+  <main id="clips-container">
+    <div class="tiles-grid" id="tiles-grid">
+      <div id="empty-state">Paste a YouTube URL above to add a clip</div>
+    </div>
+  </main>
+
+  <div id="cmd-overlay">
+    <div id="cmd-palette">
+      <input id="cmd-input" type="text" placeholder="Type a command..." spellcheck="false" />
+      <div id="cmd-results"></div>
+    </div>
+  </div>
+
+  <div id="waveform-panel">
+    <div id="waveform-header">
+      <span id="waveform-title"></span>
+      <div id="waveform-snap">
+        <button class="snap-btn active" data-snap="0">Off</button>
+        <button class="snap-btn" data-snap="0.25">0.25s</button>
+        <button class="snap-btn" data-snap="0.5">0.5s</button>
+        <button class="snap-btn" data-snap="1">1s</button>
+        <button class="snap-btn" data-snap="5">5s</button>
+        <input id="snap-custom" type="number" step="0.01" min="0.01" placeholder="custom" title="Custom snap interval (seconds)" />
+      </div>
+      <div id="waveform-offset">
+        <label for="snap-offset">Offset</label>
+        <input id="snap-offset" type="number" step="0.01" value="0" title="Grid offset (seconds) — drag horizontally to adjust" class="drag-number" />
+        <button id="snap-offset-tap" title="Tap to set offset from current playhead position">Tap</button>
+      </div>
+      <button id="waveform-fit" class="snap-btn" title="Reset zoom to fit full clip">Fit</button>
+      <div id="waveform-times">
+        <span id="waveform-time-start">0:00</span>
+        <span id="waveform-time-end">0:00</span>
+      </div>
+      <button id="waveform-close">&times;</button>
+    </div>
+    <div id="waveform-minimap"></div>
+    <canvas id="waveform-canvas"></canvas>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

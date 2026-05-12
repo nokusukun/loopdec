@@ -1,0 +1,33 @@
+const { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('win', {
+  minimize: () => ipcRenderer.send('win-minimize'),
+  maximize: () => ipcRenderer.send('win-maximize'),
+  close: () => ipcRenderer.send('win-close'),
+});
+
+contextBridge.exposeInMainWorld('api', {
+  getVideoInfo: (url) => ipcRenderer.invoke('get-video-info', url),
+  downloadClip: (url, clipId) => ipcRenderer.invoke('download-clip', url, clipId),
+  deleteClip: (clipId) => ipcRenderer.invoke('delete-clip', clipId),
+  extractAudio: (clipId) => ipcRenderer.invoke('extract-audio', clipId),
+  getAudioBuffer: (clipId) => ipcRenderer.invoke('get-audio-buffer', clipId),
+  getAudioChunk: (clipId, index) => ipcRenderer.invoke('get-audio-chunk', clipId, index),
+  getAudioPeaks: (clipId) => ipcRenderer.invoke('get-audio-peaks', clipId),
+  saveManifest: (data) => ipcRenderer.invoke('save-manifest', data),
+  loadManifest: () => ipcRenderer.invoke('load-manifest'),
+  saveDeck: (data) => ipcRenderer.invoke('save-deck', data),
+  loadDeck: () => ipcRenderer.invoke('load-deck'),
+  loadDeckPath: (path) => ipcRenderer.invoke('load-deck-path', path),
+  getRecentDecks: () => ipcRenderer.invoke('get-recent-decks'),
+  getCacheInfo: () => ipcRenderer.invoke('get-cache-info'),
+  setMaxCache: (gb) => ipcRenderer.invoke('set-max-cache', gb),
+  clearCache: () => ipcRenderer.invoke('clear-cache'),
+  getYtDlpVersion: () => ipcRenderer.invoke('get-ytdlp-version'),
+  onDownloadProgress: (callback) => {
+    ipcRenderer.on('download-progress', (_event, data) => callback(data));
+  },
+  onYtDlpUpdated: (callback) => {
+    ipcRenderer.on('ytdlp-updated', (_event, version) => callback(version));
+  },
+});
