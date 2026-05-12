@@ -766,6 +766,205 @@
       margin-left: 6px;
     }
 
+    /* ── Sidebar ───────────────────────────────────────────── */
+    #sidebar-overlay {
+      position: fixed;
+      inset: 0;
+      background: oklch(0.09 0.006 60 / 0.5);
+      z-index: 150;
+      display: none;
+    }
+
+    #sidebar-overlay.open { display: block; }
+
+    #sidebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 300px;
+      background: var(--bg-base);
+      border-right: 1px solid var(--border);
+      z-index: 151;
+      transform: translateX(-100%);
+      transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    #sidebar.open { transform: translateX(0); }
+
+    #sidebar::-webkit-scrollbar { width: 4px; }
+    #sidebar::-webkit-scrollbar-thumb { background: var(--bg-elevated); border-radius: 2px; }
+
+    .sidebar-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .sidebar-header h2 {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+    }
+
+    .sidebar-close {
+      width: 24px;
+      height: 24px;
+      border: none;
+      border-radius: 4px;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 15px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .sidebar-close:hover { background: var(--bg-hover); color: var(--accent); }
+
+    .sidebar-section {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .sidebar-section-title {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .sidebar-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 0;
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--text-primary);
+      transition: color 0.1s ease-out;
+    }
+
+    .sidebar-item:hover { color: var(--accent); }
+
+    .sidebar-item-hint {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .sidebar-recent {
+      padding: 2px 0;
+    }
+
+    .sidebar-recent-name {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .sidebar-recent:hover .sidebar-recent-name { color: var(--accent); }
+
+    /* ── Settings rows ────────────────────────────────────── */
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 0;
+      gap: 8px;
+    }
+
+    .setting-label {
+      font-size: 12px;
+      color: var(--text-secondary);
+      flex-shrink: 0;
+    }
+
+    .setting-input {
+      width: 80px;
+      height: 24px;
+      padding: 0 6px;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      outline: none;
+      text-align: right;
+    }
+
+    .setting-input:focus { border-color: var(--accent-muted); }
+
+    .setting-select {
+      height: 24px;
+      padding: 0 6px;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .setting-select:focus { border-color: var(--accent-muted); }
+
+    .setting-info {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    /* ── Hamburger button ─────────────────────────────────── */
+    #menu-btn {
+      -webkit-app-region: no-drag;
+      width: 28px;
+      height: 28px;
+      border: none;
+      border-radius: 4px;
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.1s ease-out;
+    }
+
+    #menu-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+    .shortcut-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 3px 0;
+      font-size: 12px;
+    }
+
+    .shortcut-key {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .shortcut-action {
+      color: var(--text-secondary);
+    }
+
     /* ── Draggable number input ────────────────────────────── */
     .drag-number {
       cursor: ew-resize;
@@ -798,6 +997,7 @@
       <button class="win-btn win-minimize" id="win-minimize" title="Minimize"></button>
       <button class="win-btn win-maximize" id="win-maximize" title="Maximize"></button>
     </div>
+    <button id="menu-btn" title="Menu">&#9776;</button>
     <span id="app-title">LoopDec</span>
     <span id="deck-name"></span>
     <form id="url-form" autocomplete="off">
@@ -821,6 +1021,96 @@
       <div id="empty-state">Paste a YouTube URL above to add a clip</div>
     </div>
   </main>
+
+  <div id="sidebar-overlay"></div>
+  <div id="sidebar">
+    <div class="sidebar-header">
+      <h2>LoopDec</h2>
+      <button class="sidebar-close" id="sidebar-close">&times;</button>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Decks</div>
+      <div class="sidebar-item" id="sb-new-deck">New Deck</div>
+      <div class="sidebar-item" id="sb-save-deck">Save Deck</div>
+      <div class="sidebar-item" id="sb-load-deck">Load Deck</div>
+    </div>
+
+    <div class="sidebar-section" id="sb-recent-section" style="display:none">
+      <div class="sidebar-section-title">Recent</div>
+      <div id="sb-recent-list"></div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Settings</div>
+
+      <div class="setting-row">
+        <span class="setting-label">Cache limit</span>
+        <div style="display:flex;align-items:center;gap:4px">
+          <input class="setting-input" id="set-cache" type="number" min="0.5" step="0.5" />
+          <span class="setting-info">GB</span>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <span class="setting-label">Video quality</span>
+        <select class="setting-select" id="set-quality">
+          <option value="1080">1080p</option>
+          <option value="720">720p</option>
+          <option value="480">480p</option>
+        </select>
+      </div>
+
+      <div class="setting-row">
+        <span class="setting-label">Audio bitrate</span>
+        <select class="setting-select" id="set-bitrate">
+          <option value="192">192k</option>
+          <option value="128">128k</option>
+          <option value="256">256k</option>
+          <option value="320">320k</option>
+        </select>
+      </div>
+
+      <div class="setting-row">
+        <span class="setting-label">Default snap</span>
+        <select class="setting-select" id="set-snap">
+          <option value="0">Off</option>
+          <option value="0.25">0.25s</option>
+          <option value="0.5">0.5s</option>
+          <option value="1">1s</option>
+          <option value="5">5s</option>
+        </select>
+      </div>
+
+      <div class="setting-row">
+        <span class="setting-label">Tile size</span>
+        <select class="setting-select" id="set-tile-size">
+          <option value="164">Small</option>
+          <option value="220" selected>Medium</option>
+          <option value="300">Large</option>
+        </select>
+      </div>
+
+      <div class="setting-row">
+        <span class="setting-label">yt-dlp path</span>
+        <input class="setting-input" id="set-ytdlp" style="width:140px;text-align:left" placeholder="auto" />
+      </div>
+
+      <div class="setting-row">
+        <span class="setting-label">Cache used</span>
+        <span class="setting-info" id="set-cache-used">...</span>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Shortcuts</div>
+      <div class="shortcut-row"><span class="shortcut-action">Command palette</span><span class="shortcut-key">&#8984;P</span></div>
+      <div class="shortcut-row"><span class="shortcut-action">Play / Stop all</span><span class="shortcut-key">Space</span></div>
+      <div class="shortcut-row"><span class="shortcut-action">Close panel</span><span class="shortcut-key">Esc</span></div>
+      <div class="shortcut-row"><span class="shortcut-action">Waveform zoom</span><span class="shortcut-key">Scroll</span></div>
+      <div class="shortcut-row"><span class="shortcut-action">Waveform pan</span><span class="shortcut-key">Shift+Scroll</span></div>
+    </div>
+  </div>
 
   <div id="cmd-overlay">
     <div id="cmd-palette">

@@ -1443,6 +1443,111 @@ playAllBtn.addEventListener('click', () => {
 stopAllBtn.addEventListener('click', stopAll);
 syncBtn.addEventListener('click', syncAll);
 
+// ── Sidebar ──────────────────────────────────────────────────────────
+const sidebarEl = document.getElementById('sidebar');
+const sidebarOverlayEl = document.getElementById('sidebar-overlay');
+let sidebarOpen = false;
+
+async function openSidebar() {
+  sidebarOpen = true;
+  sidebarEl.classList.add('open');
+  sidebarOverlayEl.classList.add('open');
+
+  // Load settings
+  const cacheInfo = await window.api.getCacheInfo();
+  document.getElementById('set-cache').value = cacheInfo.maxGB;
+  document.getElementById('set-cache-used').textContent = `${cacheInfo.usedGB} GB / ${cacheInfo.files} files`;
+
+  // Load recent decks
+  const recent = await window.api.getRecentDecks();
+  const recentSection = document.getElementById('sb-recent-section');
+  const recentList = document.getElementById('sb-recent-list');
+  recentList.innerHTML = '';
+  if (recent.length > 0) {
+    recentSection.style.display = '';
+    for (const deck of recent) {
+      const el = document.createElement('div');
+      el.className = 'sidebar-item sidebar-recent';
+      el.innerHTML = `<span class="sidebar-recent-name">${deck.name}</span>`;
+      el.addEventListener('click', () => { closeSidebar(); loadDeckByPath(deck.path); });
+      recentList.appendChild(el);
+    }
+  } else {
+    recentSection.style.display = 'none';
+  }
+}
+
+function closeSidebar() {
+  sidebarOpen = false;
+  sidebarEl.classList.remove('open');
+  sidebarOverlayEl.classList.remove('open');
+}
+
+document.getElementById('menu-btn').addEventListener('click', (e) => {
+  console.log('menu-btn clicked, sidebarOpen:', sidebarOpen);
+  e.stopPropagation();
+  if (sidebarOpen) closeSidebar();
+  else openSidebar().catch(e => console.error('Sidebar error:', e));
+});
+document.getElementById('sidebar-close').addEventListener('click', closeSidebar);
+sidebarOverlayEl.addEventListener('click', closeSidebar);
+
+// Sidebar deck actions
+document.getElementById('sb-new-deck').addEventListener('click', () => { closeSidebar(); newDeck(); });
+document.getElementById('sb-save-deck').addEventListener('click', () => { closeSidebar(); saveDeck(); });
+document.getElementById('sb-load-deck').addEventListener('click', () => { closeSidebar(); loadDeck(); });
+
+// Settings change handlers
+document.getElementById('set-cache').addEventListener('change', async (e) => {
+  const gb = parseFloat(e.target.value);
+  if (gb > 0 && isFinite(gb)) {
+    await window.api.setMaxCache(gb);
+    const info = await window.api.getCacheInfo();
+    document.getElementById('set-cache-used').textContent = `${info.usedGB} GB / ${info.files} files`;
+  }
+});
+
+document.getElementById('set-tile-size').addEventListener('change', (e) => {
+  const size = parseInt(e.target.value);
+  document.querySelector('.tiles-grid').style.gridTemplateColumns = `repeat(auto-fill, minmax(${size}px, 1fr))`;
+});
+
+// Persist settings changes to a simple settings object (stored via manifest or settings.json)
+document.getElementById('set-quality').addEventListener('change', (e) => {
+  localStorage.setItem('loopdec-quality', e.target.value);
+});
+document.getElementById('set-bitrate').addEventListener('change', (e) => {
+  localStorage.setItem('loopdec-bitrate', e.target.value);
+});
+document.getElementById('set-snap').addEventListener('change', (e) => {
+  localStorage.setItem('loopdec-snap', e.target.value);
+});
+document.getElementById('set-ytdlp').addEventListener('change', (e) => {
+  localStorage.setItem('loopdec-ytdlp', e.target.value);
+});
+
+// Restore settings from localStorage on startup
+(function restoreSettings() {
+  const quality = localStorage.getItem('loopdec-quality');
+  if (quality) document.getElementById('set-quality').value = quality;
+  const bitrate = localStorage.getItem('loopdec-bitrate');
+  if (bitrate) document.getElementById('set-bitrate').value = bitrate;
+  const snap = localStorage.getItem('loopdec-snap');
+  if (snap) document.getElementById('set-snap').value = snap;
+  const tileSize = localStorage.getItem('loopdec-tile-size');
+  if (tileSize) {
+    document.getElementById('set-tile-size').value = tileSize;
+    document.querySelector('.tiles-grid').style.gridTemplateColumns = `repeat(auto-fill, minmax(${tileSize}px, 1fr))`;
+  }
+  const ytdlp = localStorage.getItem('loopdec-ytdlp');
+  if (ytdlp) document.getElementById('set-ytdlp').value = ytdlp;
+})();
+
+// Also persist tile size
+document.getElementById('set-tile-size').addEventListener('change', (e) => {
+  localStorage.setItem('loopdec-tile-size', e.target.value);
+});
+
 // Snap controls
 const snapCustomInput = document.getElementById('snap-custom');
 const snapOffsetInput = document.getElementById('snap-offset');
@@ -1592,7 +1697,7 @@ function palettePrompt(placeholder, defaultVal) {
   });
 }
 
-function openPalette() {
+async function openPalette() {
   cmdOpen = true;
   cmdInput.value = '';
   cmdActiveIdx = 0;
@@ -1905,8 +2010,12 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
-  if (cmdOpen) return; // Let palette handle its own keys
+  if (cmdOpen) return;
 
+  if (e.code === 'Escape' && sidebarOpen) {
+    closeSidebar();
+    return;
+  }
   if (e.code === 'Escape' && editingTileId) {
     closeWaveformEditor();
     return;
