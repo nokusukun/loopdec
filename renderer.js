@@ -10,6 +10,66 @@ document.getElementById('win-close').addEventListener('click', () => window.win.
 document.getElementById('win-minimize').addEventListener('click', () => window.win.minimize());
 document.getElementById('win-maximize').addEventListener('click', () => window.win.maximize());
 
+// ── First-run binary setup ───────────────────────────────────────────
+const setupOverlay = document.getElementById('setup-overlay');
+const setupError = document.getElementById('setup-error');
+const setupSubtitle = document.getElementById('setup-subtitle');
+
+function formatBytes(n) {
+  if (!n) return '';
+  const mb = n / (1024 * 1024);
+  return mb < 1 ? `${(n / 1024).toFixed(0)} KB` : `${mb.toFixed(1)} MB`;
+}
+
+window.api.onBinarySetup((data) => {
+  // Background updates run after the overlay is dismissed — ignore them here.
+  if (data.background) return;
+
+  if (data.phase === 'ready') {
+    setupOverlay.classList.remove('open');
+    return;
+  }
+  if (data.phase === 'error') {
+    setupError.textContent = data.error || 'Setup failed';
+    setupError.classList.add('show');
+    return;
+  }
+  if (data.phase === 'first-run') {
+    setupOverlay.classList.add('open');
+    return;
+  }
+
+  const row = data.name === 'yt-dlp'
+    ? document.getElementById('setup-row-yt-dlp')
+    : data.name === 'ffmpeg' ? document.getElementById('setup-row-ffmpeg') : null;
+  if (!row) return;
+
+  const status = row.querySelector('.setup-bin-status');
+  const fill = row.querySelector('.setup-progress-fill');
+
+  if (data.phase === 'start') {
+    row.dataset.state = 'active';
+    status.textContent = 'Starting...';
+  } else if (data.phase === 'downloading') {
+    row.dataset.state = 'active';
+    const pct = data.total ? (data.received / data.total) * 100 : 0;
+    fill.style.width = `${pct}%`;
+    status.textContent = data.total
+      ? `${formatBytes(data.received)} / ${formatBytes(data.total)}`
+      : `${formatBytes(data.received)}`;
+  } else if (data.phase === 'extracting') {
+    status.textContent = 'Extracting...';
+    fill.style.width = '100%';
+  } else if (data.phase === 'pending-restart') {
+    status.textContent = 'Ready after restart';
+    row.dataset.state = 'done';
+  } else if (data.phase === 'done') {
+    row.dataset.state = 'done';
+    status.textContent = 'Ready';
+    fill.style.width = '100%';
+  }
+});
+
 // ── Shared Web Audio context ─────────────────────────────────────────
 let sharedAudioCtx = null;
 function getAudioCtx() {
@@ -1669,8 +1729,8 @@ const baseCommands = [
 
 let cachedRecentDecks = [];
 
-async // Reuse the palette as a single-line prompt (replaces window.prompt which Electron blocks)
-function palettePrompt(placeholder, defaultVal) {
+// Reuse the palette as a single-line prompt (replaces window.prompt which Electron blocks)
+async function palettePrompt(placeholder, defaultVal) {
   return new Promise((resolve) => {
     cmdOpen = true;
     cmdInput.value = defaultVal || '';

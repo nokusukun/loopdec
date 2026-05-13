@@ -24,10 +24,12 @@ contextBridge.exposeInMainWorld('api', {
   setMaxCache: (gb) => ipcRenderer.invoke('set-max-cache', gb),
   clearCache: () => ipcRenderer.invoke('clear-cache'),
   getYtDlpVersion: () => ipcRenderer.invoke('get-ytdlp-version'),
+  getFfmpegVersion: () => ipcRenderer.invoke('get-ffmpeg-version'),
+  forceCheckUpdates: () => ipcRenderer.invoke('force-check-updates'),
   onDownloadProgress: (callback) => {
     ipcRenderer.on('download-progress', (_event, data) => callback(data));
   },
-  onYtDlpUpdated: (callback) => {
-    ipcRenderer.on('ytdlp-updated', (_event, version) => callback(version));
+  onBinarySetup: (callback) => {
+    ipcRenderer.on('binary-setup', (_event, data) => callback(data));
   },
 });

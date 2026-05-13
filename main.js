@@ -1,8 +1,8 @@
-const { app, BrowserWindow, ipcMain, protocol, net, dialog } = require('electron');
-const { pathToFileURL } = require('url');
+const { app, BrowserWindow, ipcMain, protocol, dialog } = require('electron');
 const path = require('path');
-const { execFile, execFileSync, spawn } = require('child_process');
+const { execFile, spawn } = require('child_process');
 const fs = require('fs');
+const binManager = require('./bin-manager');
 
 // ── Path helpers ─────────────────────────────────────────────────────
 function clipPath(id) { return path.join(DOWNLOADS_DIR, `${id}.mp4`); }
@@ -100,6 +100,10 @@ app.whenReady().then(() => {
 
   createWindow();
 
+  mainWindow.webContents.once('did-finish-load', () => {
+    bootstrapBinaries();
+  });
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
@@ -117,97 +121,54 @@ ipcMain.on('win-maximize', () => {
 });
 ipcMain.on('win-close', () => mainWindow?.close());
 
-// Resolve a binary from candidate paths, returns null if not found
-function findBinary(candidates, versionFlag = '--version') {
-  for (const c of candidates) {
-    try {
-      execFileSync(c, [versionFlag], { stdio: 'pipe', timeout: 5000 });
-      return c;
-    } catch { continue; }
-  }
-  return null;
-}
+// Managed binaries live in bin/ next to the app executable — see bin-manager.js.
+function ytDlp() { return binManager.ytDlpPath(); }
+function ffmpeg() { return binManager.ffmpegPath(); }
 
-const YT_DLP = findBinary(['/opt/homebrew/bin/yt-dlp', '/usr/local/bin/yt-dlp', 'yt-dlp']) || 'yt-dlp';
-const FFMPEG = findBinary(['/opt/homebrew/bin/ffmpeg', '/usr/local/bin/ffmpeg', 'ffmpeg'], '-version');
-if (!FFMPEG) console.log('ffmpeg not found — falling back to video-only looping');
-
-// ── yt-dlp version check and auto-update ─────────────────────────────
-function getYtDlpVersion() {
-  try {
-    return execFileSync(YT_DLP, ['--version'], { stdio: 'pipe', timeout: 5000 })
-      .toString()
-      .trim();
-  } catch {
-    return null;
+function sendSetup(payload) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('binary-setup', payload);
   }
 }
 
-function isYtDlpOld(versionStr) {
-  if (!versionStr) return true;
-  // yt-dlp versions are YYYY.MM.DD format
-  const match = versionStr.match(/^(\d{4})\.(\d{1,2})\.(\d{1,2})/);
-  if (!match) return true;
-  const versionDate = new Date(+match[1], +match[2] - 1, +match[3]);
-  const daysSince = (Date.now() - versionDate.getTime()) / (1000 * 60 * 60 * 24);
-  return daysSince > 60;
-}
-
-function tryUpdateYtDlp() {
-  return new Promise((resolve) => {
-    // Try brew first, then pip, then yt-dlp -U
-    const strategies = [
-      { cmd: 'brew', args: ['upgrade', 'yt-dlp'] },
-      { cmd: YT_DLP, args: ['-U'] },
-      { cmd: 'pip3', args: ['install', '--upgrade', 'yt-dlp'] },
-    ];
-
-    let idx = 0;
-    function tryNext() {
-      if (idx >= strategies.length) {
-        resolve(false);
-        return;
-      }
-      const s = strategies[idx++];
-      const proc = spawn(s.cmd, s.args, { timeout: 120000 });
-      proc.on('close', (code) => {
-        if (code === 0) resolve(true);
-        else tryNext();
-      });
-      proc.on('error', () => tryNext());
-    }
-    tryNext();
-  });
-}
-
-// Check and update on startup (non-blocking)
-(async () => {
-  const version = getYtDlpVersion();
-  if (isYtDlpOld(version)) {
-    console.log(`yt-dlp version ${version || 'unknown'} is older than 60 days, attempting update...`);
-    const updated = await tryUpdateYtDlp();
-    if (updated) {
-      const newVersion = getYtDlpVersion();
-      console.log(`yt-dlp updated to ${newVersion}`);
-      mainWindow?.webContents.send('ytdlp-updated', newVersion);
-    } else {
-      console.log('yt-dlp auto-update failed. Continuing with current version.');
-    }
+async function bootstrapBinaries() {
+  if (binManager.binariesPresent()) {
+    sendSetup({ phase: 'ready' });
   } else {
-    console.log(`yt-dlp version ${version} is up to date`);
+    sendSetup({ phase: 'first-run' });
+    try {
+      await binManager.ensureBinaries(sendSetup);
+      sendSetup({ phase: 'ready' });
+    } catch (e) {
+      console.error('[main] ensureBinaries failed:', e);
+      sendSetup({ phase: 'error', error: e.message });
+      return;
+    }
   }
-})();
+  // Background update check (daily yt-dlp, monthly ffmpeg).
+  binManager.checkForUpdates((p) => sendSetup({ ...p, background: true }))
+    .catch((e) => console.error('[main] update check failed:', e));
+}
 
-// Expose version info to renderer
 ipcMain.handle('get-ytdlp-version', async () => {
-  const version = getYtDlpVersion();
-  return { version, isOld: isYtDlpOld(version) };
+  const version = await binManager.getYtDlpVersion();
+  return { version };
+});
+
+ipcMain.handle('get-ffmpeg-version', async () => {
+  const version = await binManager.getFfmpegVersion();
+  return { version };
+});
+
+ipcMain.handle('force-check-updates', async () => {
+  await binManager.checkForUpdates((p) => sendSetup({ ...p, background: true }), { force: true });
+  return true;
 });
 
 // Get video info (title, duration) without downloading
 ipcMain.handle('get-video-info', async (_event, url) => {
   return new Promise((resolve, reject) => {
-    execFile(YT_DLP, [
+    execFile(ytDlp(), [
       '--dump-json',
       '--no-playlist',
       '--no-warnings',
@@ -235,7 +196,7 @@ ipcMain.handle('download-clip', async (event, url, clipId) => {
   try { fs.accessSync(outPath); return outPath; } catch {}
 
   return new Promise((resolve, reject) => {
-    const proc = spawn(YT_DLP, [
+    const proc = spawn(ytDlp(), [
       '-f', 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]/best',
       '--merge-output-format', 'mp4',
       '--no-playlist',
@@ -277,7 +238,7 @@ ipcMain.handle('download-clip', async (event, url, clipId) => {
 // ── Audio extraction via ffmpeg ───────────────────────────────────────
 // Extract audio: small files → single m4a, large files → chunked
 ipcMain.handle('extract-audio', async (_event, clipId) => {
-  if (!FFMPEG) return { ok: false, reason: 'ffmpeg-missing' };
+  if (!fs.existsSync(ffmpeg())) return { ok: false, reason: 'ffmpeg-missing' };
 
   const mp4 = clipPath(clipId);
   try { fs.accessSync(mp4); } catch { return { ok: false, reason: 'mp4-missing' }; }
@@ -314,10 +275,10 @@ ipcMain.handle('extract-audio', async (_event, clipId) => {
 
 function extractSingleAudio(clipId, mp4, audio) {
   return new Promise((resolve) => {
-    const proc = spawn(FFMPEG, ['-i', mp4, '-vn', '-c:a', 'copy', '-y', audio], { timeout: 300000 });
+    const proc = spawn(ffmpeg(), ['-i', mp4, '-vn', '-c:a', 'copy', '-y', audio], { timeout: 300000 });
     proc.on('close', (code) => {
       if (code === 0 && fs.existsSync(audio)) return resolve(true);
-      const proc2 = spawn(FFMPEG, ['-i', mp4, '-vn', '-c:a', 'aac', '-b:a', '192k', '-y', audio], { timeout: 600000 });
+      const proc2 = spawn(ffmpeg(), ['-i', mp4, '-vn', '-c:a', 'aac', '-b:a', '192k', '-y', audio], { timeout: 600000 });
       proc2.on('close', (code2) => resolve(code2 === 0 && fs.existsSync(audio)));
       proc2.on('error', () => resolve(false));
     });
@@ -328,7 +289,7 @@ function extractSingleAudio(clipId, mp4, audio) {
 function extractChunked(clipId, audioFile) {
   return new Promise((resolve) => {
     const pattern = path.join(DOWNLOADS_DIR, `${clipId}_chunk_%03d.m4a`);
-    const proc = spawn(FFMPEG, [
+    const proc = spawn(ffmpeg(), [
       '-i', audioFile,
       '-f', 'segment', '-segment_time', String(CHUNK_DURATION),
       '-c:a', 'aac', '-b:a', '192k', '-y',
@@ -363,7 +324,7 @@ function computeAndSavePeaks(clipId, audioFile) {
   return new Promise((resolve) => {
     const NUM_PEAKS = 4000;
     // ffmpeg outputs raw mono float32 at low sample rate for peak computation
-    const proc = spawn(FFMPEG, [
+    const proc = spawn(ffmpeg(), [
       '-i', audioFile, '-ac', '1', '-ar', '8000', '-f', 'f32le', '-'
     ], { timeout: 300000 });
 
