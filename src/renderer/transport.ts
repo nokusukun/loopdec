@@ -42,9 +42,11 @@ export function syncAll(): void {
           playAudio(tile, tile.loopStart);
           tile.video.muted = true;
           tile.video.currentTime = tile.loopStart;
+          tile.video.playbackRate = tile.speed;
           tile.video.play().catch(() => {});
         } else {
           tile.video.currentTime = tile.loopStart;
+          tile.video.playbackRate = tile.speed;
           tile.video.play().catch(() => {});
         }
         tile.state = 'playing';

@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type { LoopDecApi, WindowControls } from '../shared/ipc';
 import type { DownloadProgressEvent, BinarySetupEvent } from '../shared/types';
 
@@ -13,6 +13,9 @@ const api: LoopDecApi = {
   downloadClip: (url, clipId) => ipcRenderer.invoke('download-clip', url, clipId),
   deleteClip: (clipId) => ipcRenderer.invoke('delete-clip', clipId),
   extractAudio: (clipId) => ipcRenderer.invoke('extract-audio', clipId),
+  pickLocalFiles: () => ipcRenderer.invoke('pick-local-files'),
+  loadLocalClip: (filePath, clipId) => ipcRenderer.invoke('load-local-clip', filePath, clipId),
+  getPathForFile: (file) => webUtils.getPathForFile(file),
   getAudioBuffer: (clipId) => ipcRenderer.invoke('get-audio-buffer', clipId),
   getAudioChunk: (clipId, index) => ipcRenderer.invoke('get-audio-chunk', clipId, index),
   getAudioPeaks: (clipId) => ipcRenderer.invoke('get-audio-peaks', clipId),

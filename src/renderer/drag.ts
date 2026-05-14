@@ -4,6 +4,39 @@ import { tilesGrid } from './dom';
 import { setTilePosition, renderEmptyCells } from './grid';
 import { saveManifest } from './manifest';
 
+// Generic pointer-slider lifecycle used by the EQ bands and the speed track.
+// Captures the pointer, computes the element's rect once on down, then forwards
+// every move and the final release to the caller. Cancellation is treated as release.
+export interface SliderDragHandlers {
+  // Return false to abort the drag (e.g. no tile to edit). Run before preventDefault.
+  start?: () => boolean | void;
+  move: (clientX: number, clientY: number, rect: DOMRect) => void;
+  end?: () => void;
+}
+
+export function bindSliderDrag(target: HTMLElement, h: SliderDragHandlers): void {
+  target.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    if (h.start?.() === false) return;
+    e.preventDefault();
+    try { target.setPointerCapture(e.pointerId); } catch {}
+
+    const rect = target.getBoundingClientRect();
+    h.move(e.clientX, e.clientY, rect);
+
+    const onMove = (ev: PointerEvent) => h.move(ev.clientX, ev.clientY, rect);
+    const onUp = () => {
+      target.removeEventListener('pointermove', onMove);
+      target.removeEventListener('pointerup', onUp);
+      target.removeEventListener('pointercancel', onUp);
+      h.end?.();
+    };
+    target.addEventListener('pointermove', onMove);
+    target.addEventListener('pointerup', onUp);
+    target.addEventListener('pointercancel', onUp);
+  });
+}
+
 export function enableTileDrag(tile: Tile): void {
   const handle = tile.els.dragHandle;
   handle.addEventListener('pointerdown', (e) => {

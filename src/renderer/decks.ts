@@ -9,7 +9,7 @@ import { editor } from './editor-state';
 import { gridShape, applyGridShape, findFirstEmptyCell, renderEmptyCells, setTilePosition } from './grid';
 import { saveManifest } from './manifest';
 import { createTileElement, loadVideo, removeTile } from './tile';
-import { stopAudioSource, decodeSourceAudio } from './audio-engine';
+import { decodeSourceAudio, tearDownTileAudio } from './audio-engine';
 import { stopPlayheadAnimation } from './playback';
 import { closeWaveformEditor } from './waveform';
 import { updateTileLoopIndicator } from './tile-display';
@@ -40,6 +40,9 @@ function buildDeckData(): DeckData {
       loopStart: tile.loopStart, loopEnd: tile.loopEnd,
       enabled: tile.enabled, volume: tile.volume,
       row: tile.row, col: tile.col,
+      eq: [...tile.eq],
+      speed: tile.speed,
+      pitchLock: tile.pitchLock,
     });
   }
   return data;
@@ -127,8 +130,7 @@ async function applyDeckData(data: DeckData, path: string | null = null): Promis
     if (!tile) continue;
 
     if (editor.tileId === tileId) closeWaveformEditor();
-    stopAudioSource(tile);
-    if (tile.gainNode) { try { tile.gainNode.disconnect(); } catch {} tile.gainNode = null; }
+    tearDownTileAudio(tile);
     if (tile.video) { tile.video.pause(); tile.video.src = ''; }
     stopPlayheadAnimation(tile);
     tile.els.tile.remove();
@@ -164,6 +166,10 @@ async function applyDeckData(data: DeckData, path: string | null = null): Promis
       animFrameId: null, volume: td.volume ?? 1,
       gainNode: null, muted: false,
       els: undefined as unknown as Tile['els'],
+      eq: td.eq && td.eq.length === 8 ? [...td.eq] : [0, 0, 0, 0, 0, 0, 0, 0],
+      eqFilters: null,
+      speed: td.speed ?? 1,
+      pitchLock: td.pitchLock ?? false,
     };
 
     const tileNum = parseInt(tile.id.split('_').pop() ?? '') || 0;

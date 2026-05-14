@@ -34,7 +34,6 @@ export const setupError     = $('setup-error');
 export const sidebarEl        = $('sidebar');
 export const sidebarOverlayEl = $('sidebar-overlay');
 export const menuBtn          = $<HTMLButtonElement>('menu-btn');
-export const sidebarCloseBtn  = $<HTMLButtonElement>('sidebar-close');
 
 export const cmdOverlay  = $('cmd-overlay');
 export const cmdInput    = $<HTMLInputElement>('cmd-input');

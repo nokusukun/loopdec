@@ -69,9 +69,14 @@ export async function playTile(tile: Tile): Promise<void> {
     await playAudio(tile, startPos);
     tile.video.muted = true;
     await seekVideo();
+    // Reassert rate immediately before play(): seek/await window can let
+    // intermediate playbackRate writes get clobbered by element resets.
+    tile.video.playbackRate = tile.speed;
     tile.video.play().catch(() => {});
   } else {
+    tile.video.playbackRate = tile.speed;
     await seekVideo();
+    tile.video.playbackRate = tile.speed;
     tile.video.play().catch(() => {});
   }
 

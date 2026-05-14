@@ -10,6 +10,8 @@ import { getAudioPosition, updateAudioLoopPoints } from './audio-engine';
 import { updateTileLoopIndicator } from './tile-display';
 import { saveManifest } from './manifest';
 import { formatTimePrecise } from './utils';
+import { loadEqForCurrentTile } from './eq';
+import { loadSpeedForCurrentTile } from './speed';
 
 let lastCanvasW = 0;
 let lastCanvasH = 0;
@@ -217,6 +219,8 @@ export function openWaveformEditor(tileId: string): void {
   waveformTitleEl.textContent = source.title;
   waveformAddressEl.textContent = padAddress(tile.row ?? 0, tile.col ?? 0);
   updateWaveformTimes(tile);
+  loadEqForCurrentTile();
+  loadSpeedForCurrentTile();
 
   waveformPanel.classList.add('open');
   document.body.classList.add('waveform-open');

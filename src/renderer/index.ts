@@ -14,7 +14,12 @@ import { bindKeyboard } from './keyboard';
 import { bindUrlInput } from './url-input';
 import { bindDownloadProgress } from './download-progress';
 import { bindIdle } from './idle';
-import { restoreSession } from './restore';
+import { bindEq } from './eq';
+import { bindSpeed } from './speed';
+import { bindLocalFiles } from './local-files';
+import { restoreOutputDevice, applyStoredDeviceToContext } from './audio-output';
+import { onAudioContextCreated } from './audio-context';
+import { updateEmptyState } from './state';
 
 bindWindowControls();
 bindSetupOverlay();
@@ -28,9 +33,22 @@ bindKeyboard();
 bindUrlInput();
 bindDownloadProgress();
 bindIdle();
+bindEq();
+bindSpeed();
+bindLocalFiles();
 
-// Reads localStorage prefs (including grid shape) and applies them before restoring session,
-// so the grid is correctly sized when tiles get re-placed.
+// Tag the host OS so platform-specific hints (e.g. the virtual-cable suggestion
+// in audio settings) can show only the relevant entry without touching JS.
+const ua = navigator.userAgent;
+document.documentElement.dataset.os =
+  /Windows/i.test(ua) ? 'win' :
+  /Mac OS X|Macintosh/i.test(ua) ? 'mac' :
+  'linux';
+
 restoreSettings();
+restoreOutputDevice();
+onAudioContextCreated(applyStoredDeviceToContext);
 
-restoreSession();
+// Start with a fresh deck on every launch. The idle screen surfaces recent decks
+// for quick re-open; explicit Save Deck is the persistence mechanism, not the manifest.
+updateEmptyState();

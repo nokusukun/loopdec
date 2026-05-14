@@ -1,9 +1,10 @@
-import { ipcMain } from 'electron';
+import { ipcMain, dialog } from 'electron';
 import { execFile, spawn } from 'node:child_process';
 import fs from 'node:fs';
+import path from 'node:path';
 import { ytDlpPath } from './binaries';
 import { clipPath, audioPath, peaksPath, chunkPath, safeUnlink } from './paths';
-import { sendDownloadProgress } from './window';
+import { sendDownloadProgress, getMainWindow } from './window';
 import { evictOldCache } from './cache';
 import type { VideoInfo } from '../shared/types';
 
@@ -73,6 +74,28 @@ export function registerClipHandlers(): void {
 
       proc.on('error', (err) => reject(err.message));
     });
+  });
+
+  // Local media — both pick-via-dialog and ingest-by-path flows.
+  ipcMain.handle('pick-local-files', async (): Promise<string[]> => {
+    const win = getMainWindow();
+    if (!win) return [];
+    const result = await dialog.showOpenDialog(win, {
+      title: 'Load Media',
+      properties: ['openFile', 'multiSelections'],
+      filters: [
+        { name: 'Media', extensions: ['mp4', 'mov', 'mkv', 'webm', 'm4v', 'mp3', 'wav', 'flac', 'm4a', 'ogg', 'aac', 'opus'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+    });
+    if (result.canceled) return [];
+    return result.filePaths;
+  });
+
+  ipcMain.handle('load-local-clip', async (_event, filePath: string, clipId: string): Promise<{ title: string }> => {
+    const target = clipPath(clipId);
+    await fs.promises.copyFile(filePath, target);
+    return { title: path.basename(filePath, path.extname(filePath)) };
   });
 
   ipcMain.handle('delete-clip', async (_event, clipId: string): Promise<boolean> => {

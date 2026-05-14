@@ -68,6 +68,11 @@ function buildCommandList(query: string): CommandItem[] {
     { id: 'load-deck',    label: 'Load Deck',         action: async () => { closePalette(); (await lazy()).loadDeck(); } },
     { id: 'sep-1', separator: true },
     { id: 'add-url',   label: 'Add YouTube URL', action: () => { closePalette(); urlInput.focus(); } },
+    { id: 'load-file', label: 'Load File…',  action: async () => {
+      closePalette();
+      const m = await import('./local-files');
+      await m.pickAndLoad();
+    }},
     { id: 'play-all',  label: 'Play All',  hint: 'Space', action: () => { closePalette(); playAll(); } },
     { id: 'stop-all',  label: 'Stop All',  hint: 'Space', action: () => { closePalette(); stopAll(); } },
     { id: 'sync-all',  label: 'Sync All',  action: () => { closePalette(); syncAll(); } },

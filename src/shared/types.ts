@@ -20,6 +20,15 @@ export interface TilePersisted {
   volume: number;
   row?: number;
   col?: number;
+  // 8-band graphic EQ gains in dB, one per fixed band (see EQ_BANDS in audio-engine).
+  // Omitted on legacy decks → defaults to flat [0,0,0,0,0,0,0,0] on load.
+  eq?: number[];
+  // Playback rate multiplier. 1.0 = normal. Currently pitched (changes pitch with speed).
+  // Range 0.5–2.0 enforced by the UI. Omitted on legacy decks → defaults to 1.
+  speed?: number;
+  // When true, speed changes preserve pitch (time-stretched via OLA). When false,
+  // BufferSource.playbackRate changes pitch with speed (sampler/varispeed feel).
+  pitchLock?: boolean;
 }
 
 export interface GridShape {

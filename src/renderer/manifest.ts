@@ -30,6 +30,9 @@ export function saveManifest(): void {
         volume: tile.volume,
         row: tile.row,
         col: tile.col,
+        eq: [...tile.eq],
+        speed: tile.speed,
+        pitchLock: tile.pitchLock,
       });
     }
     window.api.saveManifest(data);

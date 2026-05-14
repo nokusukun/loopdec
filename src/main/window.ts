@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain } from 'electron';
+import { BrowserWindow, ipcMain, shell } from 'electron';
 import path from 'node:path';
 import type { BinarySetupEvent, DownloadProgressEvent } from '../shared/types';
 
@@ -19,6 +19,14 @@ export function createWindow(): BrowserWindow {
       contextIsolation: true,
       nodeIntegration: false,
     },
+  });
+
+  // Route any target="_blank" / window.open() out to the user's default browser
+  // instead of opening a new Electron window. Returning 'deny' prevents the
+  // popup window from being created.
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url)) shell.openExternal(url);
+    return { action: 'deny' };
   });
 
   mainWindow.loadFile(path.join(__dirname, 'index.html'));

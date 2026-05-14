@@ -119,6 +119,33 @@
       flex-shrink: 0;
     }
 
+    /* ── Brand mark ──────────────────────────────────────────
+       2×2 pad bank, diagonal pads filled. Sized in em so it scales
+       naturally next to its sibling wordmark; color inherited so the
+       same shape reads neutral in chrome and amber on the idle hero. */
+    .lo-mark {
+      display: inline-block;
+      flex-shrink: 0;
+      vertical-align: middle;
+    }
+    .lo-mark-sm {
+      width: 13px;
+      height: 13px;
+      /* Quiet etched-faceplate read in the titlebar; amber is reserved for
+         transport/state, not for branding chrome. */
+      color: var(--text-secondary);
+    }
+    .lo-mark-lg {
+      width: 30px;
+      height: 30px;
+      color: var(--accent);
+    }
+    .lo-headline {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
     #deck-name {
       font-size: 11px;
       font-weight: 500;
@@ -559,6 +586,22 @@
       flex-shrink: 0;
     }
     .tile[data-state="playing"] .tile-address { color: var(--led-play); }
+
+    .tile-speed-pill {
+      display: none;
+      font-family: var(--font-mono);
+      font-size: 8.5px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: var(--accent);
+      padding: 1px 4px;
+      background: oklch(0.16 0.025 80);
+      box-shadow: inset 0 0 0 1px var(--accent-muted);
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    .tile[data-speed-mod="true"] .tile-speed-pill { display: inline-flex; }
 
     .tile-leds {
       display: flex;
@@ -1111,15 +1154,358 @@
     }
 
     /* Main waveform canvas — LCD scope */
+    /* Canvas + EQ row */
+    #waveform-content {
+      flex: 1;
+      display: flex;
+      gap: 8px;
+      min-height: 0;
+    }
+
     #waveform-canvas {
       flex: 1;
-      width: 100%;
+      min-width: 0;
       min-height: 0;
       display: block;
       background: var(--bg-screen);
       box-shadow: inset 0 1px 2px oklch(0 0 0 / 0.5), inset 0 0 0 1px var(--border-subtle);
       cursor: crosshair;
     }
+
+    /* ── Per-tile parameter rack (right side of editor) ───── */
+    #tile-params {
+      width: 320px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-height: 0;
+    }
+
+    /* ── Speed control ────────────────────────────────────── */
+    #speed-panel {
+      flex-shrink: 0;
+      background: var(--bg-screen);
+      box-shadow: inset 0 0 0 1px var(--border-subtle), inset 0 1px 2px oklch(0 0 0 / 0.5);
+      padding: 0 10px;
+      height: 34px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .speed-label {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.32em;
+      color: var(--text-secondary);
+      flex-shrink: 0;
+    }
+    .speed-track {
+      flex: 1;
+      position: relative;
+      height: 18px;
+      background: oklch(0.05 0.005 60);
+      box-shadow: inset 0 0 0 1px var(--border-subtle);
+      cursor: ew-resize;
+      overflow: hidden;
+      transition: background 0.1s ease-out, box-shadow 0.1s ease-out;
+    }
+    .speed-track:hover {
+      background: oklch(0.07 0.008 80);
+      box-shadow: inset 0 0 0 1px var(--border);
+    }
+    .speed-detent {
+      position: absolute;
+      top: 0; bottom: 0; left: 50%;
+      width: 1px;
+      background: var(--text-muted);
+      transform: translateX(-0.5px);
+      pointer-events: none;
+      opacity: 0.55;
+    }
+    .speed-thumb {
+      position: absolute;
+      top: 3px; bottom: 3px;
+      width: 5px;
+      background: var(--text-muted);
+      box-shadow: 0 0 0 1px oklch(0 0 0 / 0.55), inset 1px 0 0 oklch(1 0 0 / 0.08);
+      transform: translateX(-2.5px);
+      pointer-events: none;
+      transition: left 0.06s linear, background 0.1s ease-out, box-shadow 0.15s ease-out;
+    }
+    #speed-panel[data-active="true"] .speed-thumb {
+      background: var(--accent);
+      box-shadow: 0 0 0 1px oklch(0 0 0 / 0.55), 0 0 5px var(--accent-glow), inset 1px 0 0 oklch(1 0 0 / 0.2);
+    }
+    #speed-panel[data-state="dragging"] .speed-thumb {
+      background: var(--accent-hover);
+      box-shadow: 0 0 0 1px oklch(0 0 0 / 0.55), 0 0 7px var(--accent-glow), inset 1px 0 0 oklch(1 0 0 / 0.25);
+    }
+    .speed-readout {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+      width: 52px;
+      text-align: right;
+      flex-shrink: 0;
+      transition: color 0.12s ease-out, box-shadow 0.12s ease-out;
+      cursor: text;
+      padding: 1px 3px;
+      margin: -1px -3px;
+    }
+    #speed-panel[data-active="true"] .speed-readout { color: var(--accent); }
+    .speed-readout[contenteditable="true"] {
+      outline: none;
+      box-shadow: inset 0 0 0 1px var(--accent);
+      color: var(--accent);
+      caret-color: var(--accent);
+      cursor: text;
+      user-select: text;
+    }
+
+    /* HOLD toggle — sampler-style "preserve pitch" button. */
+    .speed-lock-btn {
+      height: 20px;
+      padding: 0 7px;
+      border: 1px solid var(--border);
+      background: var(--bg-elevated);
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      cursor: pointer;
+      flex-shrink: 0;
+      box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.02);
+      transition: background 0.1s, color 0.1s, border-color 0.1s, box-shadow 0.15s;
+    }
+    .speed-lock-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+      border-color: var(--border-strong);
+    }
+    .speed-lock-btn[aria-pressed="true"] {
+      background: oklch(0.16 0.03 80);
+      color: var(--accent);
+      border-color: var(--accent-muted);
+      box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.04), 0 0 6px var(--accent-glow);
+    }
+    .speed-lock-btn[aria-pressed="true"]:hover {
+      color: var(--accent-hover);
+      border-color: var(--accent);
+    }
+    .speed-lock-btn:active {
+      background: var(--bg-base);
+      box-shadow: inset 0 1px 2px oklch(0 0 0 / 0.4);
+    }
+
+    /* ── 8-band graphic EQ ────────────────────────────────── */
+    #eq-panel {
+      --eq-readout-h: 13px;
+      --eq-freq-h: 14px;
+      flex: 1;
+      min-height: 0;
+      background: var(--bg-screen);
+      box-shadow: inset 0 0 0 1px var(--border-subtle), inset 0 1px 2px oklch(0 0 0 / 0.5);
+      padding: 8px 10px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .eq-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      height: 16px;
+      flex-shrink: 0;
+    }
+    .eq-title {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.32em;
+      color: var(--text-secondary);
+    }
+    .eq-status {
+      margin-left: auto;
+      font-family: var(--font-mono);
+      font-size: 8.5px;
+      font-weight: 700;
+      letter-spacing: 0.22em;
+      color: var(--text-muted);
+      transition: color 0.12s ease-out;
+    }
+    #eq-panel[data-active="true"] .eq-status { color: var(--accent); }
+
+    .eq-reset-btn {
+      height: 16px;
+      padding: 0 7px;
+      border: 1px solid var(--border);
+      background: var(--bg-elevated);
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 8.5px;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      cursor: pointer;
+      transition: background 0.1s, color 0.1s, border-color 0.1s;
+      box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.02);
+    }
+    .eq-reset-btn:hover {
+      background: var(--bg-hover);
+      color: var(--accent);
+      border-color: var(--accent-muted);
+    }
+    .eq-reset-btn:active {
+      background: var(--bg-base);
+      box-shadow: inset 0 1px 2px oklch(0 0 0 / 0.4);
+    }
+
+    .eq-stage {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 26px 1fr;
+      gap: 8px;
+      min-height: 0;
+    }
+
+    /* dB scale aligned with the gridlines inside the band tracks. The first
+       and last labels sit on the top/bottom edges; the middle aligns with 0 dB. */
+    .eq-scale {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: flex-end;
+      padding: var(--eq-readout-h) 0 var(--eq-freq-h);
+      font-family: var(--font-mono);
+      font-size: 8.5px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+      user-select: none;
+    }
+    .eq-scale-zero { color: var(--text-secondary); }
+
+    .eq-bands {
+      display: grid;
+      grid-template-columns: repeat(8, minmax(0, 1fr));
+      gap: 3px;
+      min-height: 0;
+    }
+    .eq-band {
+      display: grid;
+      grid-template-rows: var(--eq-readout-h) 1fr var(--eq-freq-h);
+      align-items: stretch;
+      min-width: 0;
+      user-select: none;
+    }
+    .eq-readout {
+      height: var(--eq-readout-h);
+      font-family: var(--font-mono);
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-align: center;
+      color: var(--accent);
+      font-variant-numeric: tabular-nums;
+      opacity: 0;
+      transition: opacity 0.1s ease-out;
+      line-height: var(--eq-readout-h);
+    }
+    .eq-band[data-state="active"] .eq-readout,
+    .eq-band[data-state="dragging"] .eq-readout { opacity: 1; }
+
+    .eq-track {
+      position: relative;
+      background: oklch(0.05 0.005 60);
+      box-shadow: inset 0 0 0 1px var(--border-subtle);
+      cursor: ns-resize;
+      overflow: hidden;
+      transition: background 0.1s ease-out, box-shadow 0.1s ease-out;
+    }
+    .eq-track:hover {
+      background: oklch(0.07 0.008 80);
+      box-shadow: inset 0 0 0 1px var(--border);
+    }
+    .eq-band[data-state="dragging"] .eq-track {
+      background: oklch(0.09 0.02 80);
+      box-shadow: inset 0 0 0 1px var(--accent-muted);
+    }
+
+    /* Gridlines: 0 dB centerline (strong), ±6 dB (faint). ±12 = track edges. */
+    .eq-grid {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(to bottom, transparent calc(50% - 0.5px), var(--text-muted) calc(50% - 0.5px), var(--text-muted) calc(50% + 0.5px), transparent calc(50% + 0.5px)),
+        linear-gradient(to bottom, transparent calc(25% - 0.5px), var(--border-subtle) calc(25% - 0.5px), var(--border-subtle) calc(25% + 0.5px), transparent calc(25% + 0.5px)),
+        linear-gradient(to bottom, transparent calc(75% - 0.5px), var(--border-subtle) calc(75% - 0.5px), var(--border-subtle) calc(75% + 0.5px), transparent calc(75% + 0.5px));
+      opacity: 0.55;
+    }
+
+    /* Segmented amber fill grows from centerline. Repeating gradient = LED meter feel. */
+    .eq-fill {
+      position: absolute;
+      left: calc(50% - 6px);
+      width: 12px;
+      background:
+        repeating-linear-gradient(
+          to bottom,
+          var(--accent) 0,
+          var(--accent) 2px,
+          oklch(0.05 0.005 60) 2px,
+          oklch(0.05 0.005 60) 3px
+        );
+      pointer-events: none;
+      transition: top 0.06s linear, height 0.06s linear, filter 0.15s ease-out;
+    }
+    .eq-band[data-state="active"] .eq-fill,
+    .eq-band[data-state="dragging"] .eq-fill {
+      filter: drop-shadow(0 0 3px var(--accent-glow));
+    }
+
+    .eq-thumb {
+      position: absolute;
+      left: 2px;
+      right: 2px;
+      height: 5px;
+      background: var(--text-muted);
+      box-shadow: 0 0 0 1px oklch(0 0 0 / 0.55), inset 0 1px 0 oklch(1 0 0 / 0.08);
+      transform: translateY(-2.5px);
+      pointer-events: none;
+      transition: top 0.06s linear, background 0.1s ease-out, box-shadow 0.15s ease-out;
+    }
+    .eq-band[data-state="active"] .eq-thumb {
+      background: var(--accent);
+      box-shadow: 0 0 0 1px oklch(0 0 0 / 0.55), 0 0 5px var(--accent-glow), inset 0 1px 0 oklch(1 0 0 / 0.2);
+    }
+    .eq-band[data-state="dragging"] .eq-thumb {
+      background: var(--accent-hover);
+      box-shadow: 0 0 0 1px oklch(0 0 0 / 0.55), 0 0 7px var(--accent-glow), inset 0 1px 0 oklch(1 0 0 / 0.25);
+    }
+
+    .eq-freq {
+      height: var(--eq-freq-h);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+      transition: color 0.12s ease-out;
+    }
+    .eq-band[data-state="active"] .eq-freq,
+    .eq-band[data-state="dragging"] .eq-freq { color: var(--accent); }
 
     /* ── Command palette ────────────────────────────────────── */
     #cmd-overlay {
@@ -1255,22 +1641,6 @@
       color: var(--text-secondary);
     }
 
-    .sidebar-close {
-      width: 24px;
-      height: 24px;
-      border: none;
-      border-radius: 4px;
-      background: transparent;
-      color: var(--text-muted);
-      font-size: 15px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .sidebar-close:hover { background: var(--bg-hover); color: var(--accent); }
-
     .sidebar-section {
       padding: 12px 16px;
       border-bottom: 1px solid var(--border-subtle);
@@ -1367,6 +1737,49 @@
       color: var(--text-muted);
     }
 
+    /* Shown only when no virtual audio devices are detected. */
+    #virtual-cable-hint {
+      display: none;
+      margin: -2px 0 6px;
+      padding: 8px 10px;
+      background: var(--bg-base);
+      box-shadow: inset 0 0 0 1px var(--border-subtle);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      line-height: 1.55;
+      color: var(--text-muted);
+      letter-spacing: 0.01em;
+    }
+    #virtual-cable-hint[data-visible="true"] { display: block; }
+    #virtual-cable-hint p {
+      margin: 0 0 6px;
+    }
+    #virtual-cable-hint ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    #virtual-cable-hint li {
+      display: none;
+      font-variant-numeric: tabular-nums;
+    }
+    /* Show only the row matching the host platform; set on <html> at startup. */
+    html[data-os="win"]   #virtual-cable-hint li[data-os="win"],
+    html[data-os="mac"]   #virtual-cable-hint li[data-os="mac"],
+    html[data-os="linux"] #virtual-cable-hint li[data-os="linux"] {
+      display: block;
+    }
+    #virtual-cable-hint a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+    #virtual-cable-hint a:hover { text-decoration: underline; }
+
     /* ── Hamburger button ─────────────────────────────────── */
     #menu-btn {
       -webkit-app-region: no-drag;
@@ -1426,6 +1839,74 @@
 
     .tile[data-state="downloading"] .tile-download-label {
       animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    /* ── Drop overlay (files dragged onto the window) ────────── */
+    #drop-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 350;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: oklch(0.06 0.005 60 / 0.92);
+      pointer-events: none;
+      animation: drop-fade 0.18s ease-out;
+    }
+    body[data-dropping="true"] #drop-overlay { display: flex; }
+
+    @keyframes drop-fade {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+
+    .drop-frame {
+      position: relative;
+      padding: 56px 64px;
+      border: 2px dashed var(--accent);
+      background: oklch(0.08 0.005 60 / 0.85);
+      box-shadow: 0 0 32px oklch(0.80 0.14 80 / 0.18), inset 0 0 0 1px oklch(0 0 0 / 0.4);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      animation: drop-pulse 1.6s ease-in-out infinite;
+    }
+    @keyframes drop-pulse {
+      0%, 100% { box-shadow: 0 0 32px oklch(0.80 0.14 80 / 0.18), inset 0 0 0 1px oklch(0 0 0 / 0.4); }
+      50%      { box-shadow: 0 0 48px oklch(0.80 0.14 80 / 0.35), inset 0 0 0 1px oklch(0 0 0 / 0.4); }
+    }
+
+    .drop-headline {
+      font-family: var(--font-mono);
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: var(--accent);
+      line-height: 1;
+    }
+    .drop-subline {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+    }
+    .drop-formats {
+      margin-top: 4px;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.22em;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      max-width: 480px;
+      text-align: center;
+      line-height: 1.7;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      #drop-overlay, .drop-frame { animation: none !important; }
     }
 
     /* ── First-run binary setup overlay ─────────────────────── */
@@ -1508,6 +1989,17 @@
   </style>
 </head>
 <body>
+  <!-- LoopDec mark: 2x2 pad bank, diagonal pads filled. Defined once,
+       referenced via <use> wherever the brand appears. -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <symbol id="loopdec-mark" viewBox="0 0 16 16">
+      <rect x="1.5" y="1.5" width="5" height="5" fill="currentColor"/>
+      <rect x="9.5" y="1.5" width="5" height="5" fill="none" stroke="currentColor" stroke-width="1.2"/>
+      <rect x="1.5" y="9.5" width="5" height="5" fill="none" stroke="currentColor" stroke-width="1.2"/>
+      <rect x="9.5" y="9.5" width="5" height="5" fill="currentColor"/>
+    </symbol>
+  </svg>
+
   <header id="titlebar">
     <div class="win-controls">
       <button class="win-btn win-close" id="win-close" title="Close"></button>
@@ -1515,6 +2007,7 @@
       <button class="win-btn win-maximize" id="win-maximize" title="Maximize"></button>
     </div>
     <button id="menu-btn" title="Menu">&#9776;</button>
+    <svg class="lo-mark lo-mark-sm" aria-hidden="true" focusable="false"><use href="#loopdec-mark"/></svg>
     <span id="app-title">LoopDec</span>
     <span id="deck-name"></span>
     <form id="url-form" autocomplete="off">
@@ -1540,7 +2033,10 @@
 
     <section id="idle-screen" aria-label="Instrument idle">
       <header class="idle-brand">
-        <h1>LOOPDEC</h1>
+        <div class="lo-headline">
+          <svg class="lo-mark lo-mark-lg" aria-hidden="true" focusable="false"><use href="#loopdec-mark"/></svg>
+          <h1>LOOPDEC</h1>
+        </div>
         <p class="idle-tagline">v<span id="idle-version">1.0.0</span> &middot; YouTube loop sampler</p>
       </header>
 
@@ -1591,7 +2087,6 @@
   <div id="sidebar">
     <div class="sidebar-header">
       <h2>LoopDec</h2>
-      <button class="sidebar-close" id="sidebar-close">&times;</button>
     </div>
 
     <div class="sidebar-section">
@@ -1635,6 +2130,22 @@
           <option value="256">256k</option>
           <option value="320">320k</option>
         </select>
+      </div>
+
+      <div class="setting-row">
+        <span class="setting-label">Audio out</span>
+        <select class="setting-select" id="set-audio-output" style="max-width:180px">
+          <option value="">System default</option>
+        </select>
+      </div>
+
+      <div id="virtual-cable-hint" data-visible="false">
+        <p>No virtual routing detected. Install one to pipe LoopDec into OBS, Discord, Ableton, etc:</p>
+        <ul>
+          <li data-os="win"><a href="https://vb-audio.com/Cable/" target="_blank" rel="noopener">VB-Cable</a> &middot; Windows</li>
+          <li data-os="mac"><a href="https://existential.audio/blackhole/" target="_blank" rel="noopener">BlackHole</a> &middot; macOS</li>
+          <li data-os="linux">PipeWire null-sink &middot; Linux (built-in)</li>
+        </ul>
       </div>
 
       <div class="setting-row">
@@ -1713,7 +2224,86 @@
       <button id="waveform-close" title="Close (Esc)">&times;</button>
     </div>
     <div id="waveform-minimap"></div>
-    <canvas id="waveform-canvas"></canvas>
+    <div id="waveform-content">
+      <canvas id="waveform-canvas"></canvas>
+      <div id="tile-params">
+        <aside id="speed-panel" data-active="false" aria-label="Per-track playback speed">
+          <span class="speed-label">SPD</span>
+          <div class="speed-track" id="speed-track">
+            <div class="speed-detent"></div>
+            <div class="speed-thumb"></div>
+          </div>
+          <span class="speed-readout" id="speed-readout">1.00&times;</span>
+          <button id="speed-lock" class="speed-lock-btn" title="Hold pitch — preserve pitch when changing speed (time-stretch)" aria-pressed="false">HOLD</button>
+        </aside>
+        <aside id="eq-panel" aria-label="Per-track 8-band equalizer" data-active="false">
+        <header class="eq-head">
+          <span class="eq-title">EQ</span>
+          <span class="eq-status" id="eq-status">FLAT</span>
+          <button id="eq-reset" class="eq-reset-btn" title="Flatten all bands">RESET</button>
+        </header>
+        <div class="eq-stage">
+          <div class="eq-scale" aria-hidden="true">
+            <span>+12</span>
+            <span>+6</span>
+            <span class="eq-scale-zero">0</span>
+            <span>&minus;6</span>
+            <span>&minus;12</span>
+          </div>
+          <div class="eq-bands" id="eq-bands">
+            <div class="eq-band" data-band="0" data-state="neutral" aria-label="63 Hz">
+              <div class="eq-readout"></div>
+              <div class="eq-track"><div class="eq-grid"></div><div class="eq-fill"></div><div class="eq-thumb"></div></div>
+              <div class="eq-freq">63</div>
+            </div>
+            <div class="eq-band" data-band="1" data-state="neutral" aria-label="160 Hz">
+              <div class="eq-readout"></div>
+              <div class="eq-track"><div class="eq-grid"></div><div class="eq-fill"></div><div class="eq-thumb"></div></div>
+              <div class="eq-freq">160</div>
+            </div>
+            <div class="eq-band" data-band="2" data-state="neutral" aria-label="400 Hz">
+              <div class="eq-readout"></div>
+              <div class="eq-track"><div class="eq-grid"></div><div class="eq-fill"></div><div class="eq-thumb"></div></div>
+              <div class="eq-freq">400</div>
+            </div>
+            <div class="eq-band" data-band="3" data-state="neutral" aria-label="1 kHz">
+              <div class="eq-readout"></div>
+              <div class="eq-track"><div class="eq-grid"></div><div class="eq-fill"></div><div class="eq-thumb"></div></div>
+              <div class="eq-freq">1k</div>
+            </div>
+            <div class="eq-band" data-band="4" data-state="neutral" aria-label="2.5 kHz">
+              <div class="eq-readout"></div>
+              <div class="eq-track"><div class="eq-grid"></div><div class="eq-fill"></div><div class="eq-thumb"></div></div>
+              <div class="eq-freq">2.5k</div>
+            </div>
+            <div class="eq-band" data-band="5" data-state="neutral" aria-label="6.3 kHz">
+              <div class="eq-readout"></div>
+              <div class="eq-track"><div class="eq-grid"></div><div class="eq-fill"></div><div class="eq-thumb"></div></div>
+              <div class="eq-freq">6.3k</div>
+            </div>
+            <div class="eq-band" data-band="6" data-state="neutral" aria-label="10 kHz">
+              <div class="eq-readout"></div>
+              <div class="eq-track"><div class="eq-grid"></div><div class="eq-fill"></div><div class="eq-thumb"></div></div>
+              <div class="eq-freq">10k</div>
+            </div>
+            <div class="eq-band" data-band="7" data-state="neutral" aria-label="16 kHz">
+              <div class="eq-readout"></div>
+              <div class="eq-track"><div class="eq-grid"></div><div class="eq-fill"></div><div class="eq-thumb"></div></div>
+              <div class="eq-freq">16k</div>
+            </div>
+          </div>
+        </div>
+      </aside>
+      </div>
+    </div>
+  </div>
+
+  <div id="drop-overlay" aria-hidden="true">
+    <div class="drop-frame">
+      <div class="drop-headline">Insert Media</div>
+      <div class="drop-subline">Drop files anywhere &mdash; one pad per file</div>
+      <div class="drop-formats">MP3 &middot; WAV &middot; FLAC &middot; M4A &middot; OGG &middot; AAC &middot; OPUS &middot; MP4 &middot; MOV &middot; MKV &middot; WEBM</div>
+    </div>
   </div>
 
   <div id="setup-overlay" class="open">

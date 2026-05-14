@@ -11,11 +11,12 @@ import { enableTileDrag } from './drag';
 import {
   togglePlayTile, pauseTile, playTile, stopPlayheadAnimation, updateMasterPlayState,
 } from './playback';
-import { stopAudioSource, decodeSourceAudio, playAudio } from './audio-engine';
+import { decodeSourceAudio, playAudio, tearDownTileAudio } from './audio-engine';
 import { openWaveformEditor, closeWaveformEditor } from './waveform';
 import { editor } from './editor-state';
-import { updateTileLoopIndicator } from './tile-display';
+import { updateTileLoopIndicator, applyTileSpeedDisplay } from './tile-display';
 import { saveManifest } from './manifest';
+import { applyDeviceToVideo } from './audio-output';
 
 export function createTileElement(tile: Tile, source: Source): HTMLElement {
   const el = document.createElement('div');
@@ -37,6 +38,10 @@ export function createTileElement(tile: Tile, source: Source): HTMLElement {
   address.className = 'tile-address';
   address.textContent = '--';
 
+  const speedPill = document.createElement('span');
+  speedPill.className = 'tile-speed-pill';
+  speedPill.title = 'Playback speed';
+
   const leds = document.createElement('div');
   leds.className = 'tile-leds';
   for (const cls of ['tile-led-power', 'tile-led-ready', 'tile-led-play', 'tile-led-mute']) {
@@ -45,7 +50,7 @@ export function createTileElement(tile: Tile, source: Source): HTMLElement {
     leds.appendChild(led);
   }
 
-  header.append(dragHandle, address, leds);
+  header.append(dragHandle, address, speedPill, leds);
 
   const videoContainer = document.createElement('div');
   videoContainer.className = 'tile-video';
@@ -134,12 +139,13 @@ export function createTileElement(tile: Tile, source: Source): HTMLElement {
   el.append(header, videoContainer, body);
 
   const els: TileEls = {
-    tile: el, dragHandle, address, videoContainer,
+    tile: el, dragHandle, address, speedPill, videoContainer,
     downloadLabel: dlLabel, progressFill, title: titleSpan,
     loopRegion, loopPlayhead, timeCurrent, timeRange,
     playBtn, toggleBtn, muteBtn, volumeSlider,
   };
   tile.els = els;
+  applyTileSpeedDisplay(tile);
 
   body.addEventListener('click', (e) => {
     const t = e.target as HTMLElement;
@@ -168,6 +174,8 @@ export function loadVideo(tile: Tile, source: Source): void {
   video.src = `clip:///${tile.sourceId}`;
   if (source.audioReady) video.muted = true;
   else video.volume = tile.volume;
+  video.playbackRate = tile.speed;
+  applyDeviceToVideo(video);
 
   const overlay = document.createElement('div');
   overlay.className = 'tile-video-overlay';
@@ -193,6 +201,7 @@ export function loadVideo(tile: Tile, source: Source): void {
   video.addEventListener('ended', () => {
     if (!source.audioReady) {
       video.currentTime = tile.loopStart;
+      video.playbackRate = tile.speed;
       video.play().catch(() => {});
     }
   });
@@ -236,8 +245,7 @@ export function removeTile(tileId: string): void {
 
   if (editor.tileId === tileId) closeWaveformEditor();
 
-  stopAudioSource(tile);
-  if (tile.gainNode) { try { tile.gainNode.disconnect(); } catch {} tile.gainNode = null; }
+  tearDownTileAudio(tile);
   if (tile.video) { tile.video.pause(); tile.video.src = ''; }
   stopPlayheadAnimation(tile);
   tile.els.tile.remove();
@@ -271,27 +279,25 @@ function makeTile(id: string, sourceId: string, init: Partial<Tile>): Tile {
     gainNode: null,
     muted: false,
     els: undefined as unknown as TileEls,
+    eq: init.eq && init.eq.length === 8 ? [...init.eq] : [0, 0, 0, 0, 0, 0, 0, 0],
+    eqFilters: null,
+    speed: init.speed ?? 1,
+    pitchLock: init.pitchLock ?? false,
   };
 }
 
-export async function addClip(url: string): Promise<void> {
+// Allocate a fresh source + tile + DOM in the next empty pad. Caller fills in
+// the rest of source.title/duration once it knows them.
+function setupClip(url: string): { source: Source; tile: Tile } {
   const sourceId = generateSourceId();
   const tileId = generateTileId();
 
   const source: Source = {
-    id: sourceId,
-    url,
-    title: 'Loading...',
-    duration: 0,
-    audioBuffer: null,
-    audioReady: false,
-    chunked: false,
-    chunkCount: 0,
-    chunkDuration: 0,
-    decodedChunks: null,
-    peaks: null,
+    id: sourceId, url, title: 'Loading...', duration: 0,
+    audioBuffer: null, audioReady: false,
+    chunked: false, chunkCount: 0, chunkDuration: 0,
+    decodedChunks: null, peaks: null,
   };
-
   const tile = makeTile(tileId, sourceId, { state: 'downloading' });
 
   sources.set(sourceId, source);
@@ -304,6 +310,48 @@ export async function addClip(url: string): Promise<void> {
   renderEmptyCells();
   updateEmptyState();
 
+  return { source, tile };
+}
+
+// Common tail: media is now on disk → load video, extract audio, decode, hand
+// off playback to any tiles already mid-play on this source.
+async function finalizeClip(tile: Tile, source: Source): Promise<void> {
+  tile.state = 'paused';
+  tile.els.tile.dataset.state = 'paused';
+  loadVideo(tile, source);
+  updateTileLoopIndicator(tile);
+  saveManifest();
+
+  const result = await window.api.extractAudio(source.id);
+  if (!result.ok) return;
+
+  if (result.chunked) {
+    source.chunked = true;
+    source.chunkCount = result.chunkCount;
+    source.chunkDuration = result.chunkDuration;
+  }
+  await decodeSourceAudio(source);
+  saveManifest();
+  for (const t of tilesForSource(source.id)) {
+    if (t.state === 'playing' && t.video && !t.video.paused) {
+      playAudio(t, t.video.currentTime);
+    }
+  }
+}
+
+function setClipError(tile: Tile, err: unknown): void {
+  tile.state = 'error';
+  tile.els.tile.dataset.state = 'error';
+  tile.els.videoContainer.innerHTML = '';
+  const errEl = document.createElement('div');
+  errEl.className = 'tile-error';
+  const raw = typeof err === 'string' ? err : (err as Error).message || 'Load failed';
+  errEl.textContent = raw.split('\n').find(l => l.trim()) || 'Failed';
+  tile.els.videoContainer.appendChild(errEl);
+}
+
+export async function addClip(url: string): Promise<void> {
+  const { source, tile } = setupClip(url);
   try {
     const info = await window.api.getVideoInfo(url);
     source.title = info.title;
@@ -311,39 +359,24 @@ export async function addClip(url: string): Promise<void> {
     tile.loopEnd = info.duration;
     tile.els.title.textContent = info.title;
 
-    await window.api.downloadClip(url, sourceId);
-
-    tile.state = 'paused';
-    tileEl.dataset.state = 'paused';
-    loadVideo(tile, source);
-    updateTileLoopIndicator(tile);
-
-    saveManifest();
-
-    const result = await window.api.extractAudio(sourceId);
-    if (result.ok) {
-      if (result.chunked) {
-        source.chunked = true;
-        source.chunkCount = result.chunkCount;
-        source.chunkDuration = result.chunkDuration;
-      }
-      await decodeSourceAudio(source);
-      saveManifest();
-      for (const t of tilesForSource(sourceId)) {
-        if (t.state === 'playing' && t.video && !t.video.paused) {
-          playAudio(t, t.video.currentTime);
-        }
-      }
-    }
+    await window.api.downloadClip(url, source.id);
+    await finalizeClip(tile, source);
   } catch (err) {
-    tile.state = 'error';
-    tileEl.dataset.state = 'error';
-    tile.els.videoContainer.innerHTML = '';
-    const errEl = document.createElement('div');
-    errEl.className = 'tile-error';
-    const raw = typeof err === 'string' ? err : (err as Error).message || 'Download failed';
-    errEl.textContent = raw.split('\n').find(l => l.trim()) || 'Failed';
-    tile.els.videoContainer.appendChild(errEl);
+    setClipError(tile, err);
+  }
+}
+
+// loadedmetadata in loadVideo fills in source.duration / tile.loopEnd later;
+// no pre-known duration to set on the tile here.
+export async function addLocalClip(filePath: string): Promise<void> {
+  const { source, tile } = setupClip(filePath);
+  try {
+    const info = await window.api.loadLocalClip(filePath, source.id);
+    source.title = info.title;
+    tile.els.title.textContent = info.title;
+    await finalizeClip(tile, source);
+  } catch (err) {
+    setClipError(tile, err);
   }
 }
 
@@ -359,6 +392,9 @@ export function duplicateTile(tileId: string): void {
     enabled: true,
     state: source.audioReady ? 'paused' : original.state,
     volume: original.volume,
+    eq: original.eq,
+    speed: original.speed,
+    pitchLock: original.pitchLock,
   });
 
   tiles.set(newTile.id, newTile);

@@ -19,6 +19,7 @@ export interface TileEls {
   tile: HTMLElement;
   dragHandle: HTMLElement;
   address: HTMLElement;
+  speedPill: HTMLElement;
   videoContainer: HTMLElement;
   downloadLabel: HTMLElement;
   progressFill: HTMLElement;
@@ -49,6 +50,12 @@ export interface Tile {
   _pausedAt?: number;
   _wasPlaying?: boolean;
   _regionOffset?: number;
+  // Tracks the previous frame's video.paused to edge-detect Chromium auto-pause
+  // and avoid spamming play() every animation frame while stuck-paused.
+  _lastVideoPaused?: boolean;
+  // Debounce handle for pitch-locked speed rebuilds. Per-tile so concurrent
+  // edits on multiple tiles don't cancel each other.
+  _pitchLockTimer?: ReturnType<typeof setTimeout> | null;
   animFrameId: number | null;
   volume: number;
   gainNode: GainNode | null;
@@ -56,6 +63,15 @@ export interface Tile {
   els: TileEls;
   row?: number;
   col?: number;
+  // 8 gains in dB (one per EQ band). Always length 8.
+  eq: number[];
+  // BiquadFilter nodes built lazily on first playAudio; persists across plays.
+  eqFilters: BiquadFilterNode[] | null;
+  // Playback rate (1.0 = normal). Drives both AudioBufferSourceNode.playbackRate and
+  // the video element's playbackRate. Pitched: changing speed also shifts pitch.
+  speed: number;
+  // If true, speed changes preserve pitch via OLA time-stretch on the loop region.
+  pitchLock: boolean;
 }
 
 export interface DeckMeta {

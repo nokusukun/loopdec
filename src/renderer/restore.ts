@@ -58,6 +58,10 @@ export async function restoreSession(): Promise<void> {
       gainNode: null,
       muted: false,
       els: undefined as unknown as Tile['els'],
+      eq: td.eq && td.eq.length === 8 ? [...td.eq] : [0, 0, 0, 0, 0, 0, 0, 0],
+      eqFilters: null,
+      speed: td.speed ?? 1,
+      pitchLock: td.pitchLock ?? false,
     };
 
     const tileNum = parseInt(tile.id.split('_').pop() ?? '') || 0;

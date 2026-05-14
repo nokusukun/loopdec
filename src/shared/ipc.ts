@@ -15,11 +15,18 @@ import type {
   BinarySetupEvent,
 } from './types';
 
+export interface LocalClipInfo {
+  title: string;
+}
+
 export interface LoopDecApi {
   getVideoInfo(url: string): Promise<VideoInfo>;
   downloadClip(url: string, clipId: string): Promise<string>;
   deleteClip(clipId: string): Promise<boolean>;
   extractAudio(clipId: string): Promise<ExtractAudioResult>;
+  pickLocalFiles(): Promise<string[]>;
+  loadLocalClip(filePath: string, clipId: string): Promise<LocalClipInfo>;
+  getPathForFile(file: File): string;
   getAudioBuffer(clipId: string): Promise<ArrayBuffer | null | { error: 'use-chunks'; size: number }>;
   getAudioChunk(clipId: string, index: number): Promise<ArrayBuffer | null>;
   getAudioPeaks(clipId: string): Promise<ArrayBuffer | null>;
