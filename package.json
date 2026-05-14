@@ -2,9 +2,12 @@
   "name": "loopdec",
   "version": "1.0.0",
   "description": "",
-  "main": "main.js",
+  "main": "dist/main.js",
   "scripts": {
-    "start": "electron .",
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "start": "npm run build && electron .",
+    "typecheck": "tsc --noEmit",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -15,7 +18,10 @@
     "extract-zip": "^2.0.1"
   },
   "devDependencies": {
+    "@types/node": "^22.19.19",
     "electron": "^42.0.1",
+    "esbuild": "^0.24.2",
+    "typescript": "^5.9.3",
     "ws": "^8.20.0"
   }
 }

@@ -1,45 +1,54 @@
-const { app, net } = require('electron');
-const path = require('path');
-const fs = require('fs');
-const { execFile } = require('child_process');
-const extract = require('extract-zip');
+import { app, net } from 'electron';
+import path from 'node:path';
+import fs from 'node:fs';
+import { execFile } from 'node:child_process';
+import extract from 'extract-zip';
+import type { BinarySetupEvent } from '../shared/types';
 
 const PLATFORM = process.platform;
 const YT_DLP_EXEC = PLATFORM === 'win32' ? 'yt-dlp.exe' : 'yt-dlp';
 const FFMPEG_EXEC = PLATFORM === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
 
-const YT_DLP_ASSET = {
+const YT_DLP_ASSET = ({
   win32: 'yt-dlp.exe',
   darwin: 'yt-dlp_macos',
   linux: 'yt-dlp_linux',
-}[PLATFORM] || 'yt-dlp';
+} as Record<string, string>)[PLATFORM] ?? 'yt-dlp';
 
 const ONE_DAY = 24 * 60 * 60 * 1000;
 const THIRTY_DAYS = 30 * ONE_DAY;
 
-function binDir() {
-  const base = app.isPackaged ? path.dirname(app.getPath('exe')) : __dirname;
+type ProgressFn = (e: BinarySetupEvent) => void;
+
+interface BinMeta {
+  ytDlp?: { version: string | null; lastCheck: number };
+  ffmpeg?: { version: string | null; lastCheck: number };
+}
+
+export function binDir(): string {
+  // Packaged: next to the .exe. Unpackaged: project root (dist/ is one level deep).
+  const base = app.isPackaged ? path.dirname(app.getPath('exe')) : path.resolve(__dirname, '..');
   return path.join(base, 'bin');
 }
-function ytDlpPath() { return path.join(binDir(), YT_DLP_EXEC); }
-function ffmpegPath() { return path.join(binDir(), FFMPEG_EXEC); }
-function metaPath() { return path.join(binDir(), 'bin-meta.json'); }
+export function ytDlpPath(): string { return path.join(binDir(), YT_DLP_EXEC); }
+export function ffmpegPath(): string { return path.join(binDir(), FFMPEG_EXEC); }
+function metaPath(): string { return path.join(binDir(), 'bin-meta.json'); }
 
-function readMeta() {
+export function readMeta(): BinMeta {
   try { return JSON.parse(fs.readFileSync(metaPath(), 'utf-8')); }
   catch { return {}; }
 }
-function writeMeta(meta) {
+function writeMeta(meta: BinMeta): void {
   fs.mkdirSync(binDir(), { recursive: true });
   fs.writeFileSync(metaPath(), JSON.stringify(meta, null, 2));
 }
 
-function binariesPresent() {
+export function binariesPresent(): boolean {
   try { fs.accessSync(ytDlpPath()); fs.accessSync(ffmpegPath()); return true; }
   catch { return false; }
 }
 
-function download(url, destPath, onProgress) {
+function download(url: string, destPath: string, onProgress?: (p: { received: number; total: number }) => void): Promise<void> {
   return new Promise((resolve, reject) => {
     fs.mkdirSync(path.dirname(destPath), { recursive: true });
     const tmp = destPath + '.partial';
@@ -55,38 +64,34 @@ function download(url, destPath, onProgress) {
         try { fs.unlinkSync(tmp); } catch {}
         return reject(new Error(`HTTP ${res.statusCode} for ${url}`));
       }
-      const total = parseInt(res.headers['content-length'] || '0', 10);
+      const total = parseInt((res.headers['content-length'] as string) || '0', 10);
       let received = 0;
-      res.on('data', (chunk) => {
+      res.on('data', (chunk: Buffer) => {
         received += chunk.length;
         file.write(chunk);
-        if (onProgress) onProgress({ received, total });
+        onProgress?.({ received, total });
       });
       res.on('end', () => {
         file.end(() => {
-          try {
-            fs.renameSync(tmp, destPath);
-            resolve();
-          } catch (e) {
-            reject(e);
-          }
+          try { fs.renameSync(tmp, destPath); resolve(); }
+          catch (e) { reject(e); }
         });
       });
-      res.on('error', (e) => { file.destroy(); reject(e); });
+      res.on('error', (e: Error) => { file.destroy(); reject(e); });
     });
-    req.on('error', (e) => { file.destroy(); reject(e); });
+    req.on('error', (e: Error) => { file.destroy(); reject(e); });
     req.end();
   });
 }
 
-function fetchJson(url) {
+function fetchJson<T = unknown>(url: string): Promise<T> {
   return new Promise((resolve, reject) => {
     const req = net.request({ url, redirect: 'follow' });
     req.setHeader('User-Agent', 'loopdec');
     req.setHeader('Accept', 'application/json');
     req.on('response', (res) => {
-      const chunks = [];
-      res.on('data', (c) => chunks.push(c));
+      const chunks: Buffer[] = [];
+      res.on('data', (c: Buffer) => chunks.push(c));
       res.on('end', () => {
         try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf-8'))); }
         catch (e) { reject(e); }
@@ -98,12 +103,12 @@ function fetchJson(url) {
   });
 }
 
-async function fetchLatestTag(repo) {
-  const json = await fetchJson(`https://api.github.com/repos/${repo}/releases/latest`);
+async function fetchLatestTag(repo: string): Promise<string | null> {
+  const json = await fetchJson<{ tag_name?: string }>(`https://api.github.com/repos/${repo}/releases/latest`);
   return json?.tag_name || null;
 }
 
-function findFile(dir, regex) {
+function findFile(dir: string, regex: RegExp): string | null {
   for (const name of fs.readdirSync(dir)) {
     const full = path.join(dir, name);
     let stat;
@@ -118,16 +123,15 @@ function findFile(dir, regex) {
   return null;
 }
 
-async function downloadYtDlp(onProgress) {
+async function downloadYtDlp(onProgress?: ProgressFn): Promise<void> {
   const url = `https://github.com/yt-dlp/yt-dlp/releases/latest/download/${YT_DLP_ASSET}`;
   const dest = ytDlpPath();
-  await download(url, dest, (p) => onProgress?.({ name: 'yt-dlp', phase: 'downloading', ...p }));
+  await download(url, dest, (p) => onProgress?.({ name: 'yt-dlp', phase: 'downloading', ...p } as BinarySetupEvent));
   if (PLATFORM !== 'win32') { try { fs.chmodSync(dest, 0o755); } catch {} }
 }
 
-async function downloadFfmpeg(onProgress) {
+async function downloadFfmpeg(onProgress?: ProgressFn): Promise<void> {
   if (PLATFORM !== 'win32') {
-    // macOS/Linux ffmpeg auto-install not implemented yet — fail loudly so the UI can surface a manual-install hint.
     throw new Error(`Automatic ffmpeg install not supported on ${PLATFORM}`);
   }
   const zipUrl = 'https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-win64-gpl.zip';
@@ -136,33 +140,31 @@ async function downloadFfmpeg(onProgress) {
   fs.mkdirSync(binDir(), { recursive: true });
   try { fs.rmSync(extractTmp, { recursive: true, force: true }); } catch {}
 
-  await download(zipUrl, tmpZip, (p) => onProgress?.({ name: 'ffmpeg', phase: 'downloading', ...p }));
+  await download(zipUrl, tmpZip, (p) => onProgress?.({ name: 'ffmpeg', phase: 'downloading', ...p } as BinarySetupEvent));
 
   onProgress?.({ name: 'ffmpeg', phase: 'extracting' });
   await extract(tmpZip, { dir: extractTmp });
   const exe = findFile(extractTmp, /^ffmpeg\.exe$/i);
   if (!exe) throw new Error('ffmpeg.exe not found in archive');
-  // Write to a .new file first, then rename — handles the case where ffmpeg.exe is in use.
   const dest = ffmpegPath();
   const newPath = dest + '.new';
   fs.copyFileSync(exe, newPath);
   try { fs.renameSync(newPath, dest); }
   catch {
-    // Old exe is locked — leave .new in place; next launch will pick it up.
     onProgress?.({ name: 'ffmpeg', phase: 'pending-restart' });
   }
   try { fs.rmSync(extractTmp, { recursive: true, force: true }); } catch {}
   try { fs.unlinkSync(tmpZip); } catch {}
 }
 
-function applyPendingSwap(targetPath) {
+function applyPendingSwap(targetPath: string): void {
   const pending = targetPath + '.new';
   if (fs.existsSync(pending)) {
     try { fs.renameSync(pending, targetPath); } catch {}
   }
 }
 
-function getYtDlpVersion() {
+export function getYtDlpVersion(): Promise<string | null> {
   return new Promise((resolve) => {
     execFile(ytDlpPath(), ['--version'], { timeout: 5000 }, (err, stdout) => {
       resolve(err ? null : stdout.toString().trim());
@@ -170,7 +172,7 @@ function getYtDlpVersion() {
   });
 }
 
-function getFfmpegVersion() {
+export function getFfmpegVersion(): Promise<string | null> {
   return new Promise((resolve) => {
     execFile(ffmpegPath(), ['-version'], { timeout: 5000 }, (err, stdout) => {
       if (err) return resolve(null);
@@ -180,7 +182,7 @@ function getFfmpegVersion() {
   });
 }
 
-async function ensureBinaries(onProgress) {
+export async function ensureBinaries(onProgress?: ProgressFn): Promise<void> {
   applyPendingSwap(ytDlpPath());
   applyPendingSwap(ffmpegPath());
 
@@ -204,9 +206,10 @@ async function ensureBinaries(onProgress) {
   }
 }
 
-async function checkForUpdates(onProgress, { force = false } = {}) {
+export async function checkForUpdates(onProgress?: ProgressFn, opts: { force?: boolean } = {}): Promise<void> {
   const meta = readMeta();
   const now = Date.now();
+  const force = opts.force ?? false;
 
   const ytStale = force || !meta.ytDlp?.lastCheck || (now - meta.ytDlp.lastCheck) > ONE_DAY;
   if (ytStale) {
@@ -217,11 +220,11 @@ async function checkForUpdates(onProgress, { force = false } = {}) {
         await downloadYtDlp(onProgress);
         meta.ytDlp = { version: latest, lastCheck: now };
       } else {
-        meta.ytDlp = { ...(meta.ytDlp || {}), lastCheck: now };
+        meta.ytDlp = { ...(meta.ytDlp ?? { version: null, lastCheck: now }), lastCheck: now };
       }
       writeMeta(meta);
     } catch (e) {
-      console.error('[bin-manager] yt-dlp update check failed:', e.message);
+      console.error('[binaries] yt-dlp update check failed:', (e as Error).message);
     }
   }
 
@@ -234,23 +237,11 @@ async function checkForUpdates(onProgress, { force = false } = {}) {
         await downloadFfmpeg(onProgress);
         meta.ffmpeg = { version: latest, lastCheck: now };
       } else {
-        meta.ffmpeg = { ...(meta.ffmpeg || {}), lastCheck: now };
+        meta.ffmpeg = { ...(meta.ffmpeg ?? { version: null, lastCheck: now }), lastCheck: now };
       }
       writeMeta(meta);
     } catch (e) {
-      console.error('[bin-manager] ffmpeg update check failed:', e.message);
+      console.error('[binaries] ffmpeg update check failed:', (e as Error).message);
     }
   }
 }
-
-module.exports = {
-  ytDlpPath,
-  ffmpegPath,
-  binDir,
-  binariesPresent,
-  ensureBinaries,
-  checkForUpdates,
-  getYtDlpVersion,
-  getFfmpegVersion,
-  readMeta,
-};

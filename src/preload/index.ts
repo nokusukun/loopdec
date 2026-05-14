@@ -1,12 +1,14 @@
-const { contextBridge, ipcRenderer } = require('electron');
+import { contextBridge, ipcRenderer } from 'electron';
+import type { LoopDecApi, WindowControls } from '../shared/ipc';
+import type { DownloadProgressEvent, BinarySetupEvent } from '../shared/types';
 
-contextBridge.exposeInMainWorld('win', {
+const winApi: WindowControls = {
   minimize: () => ipcRenderer.send('win-minimize'),
   maximize: () => ipcRenderer.send('win-maximize'),
   close: () => ipcRenderer.send('win-close'),
-});
+};
 
-contextBridge.exposeInMainWorld('api', {
+const api: LoopDecApi = {
   getVideoInfo: (url) => ipcRenderer.invoke('get-video-info', url),
   downloadClip: (url, clipId) => ipcRenderer.invoke('download-clip', url, clipId),
   deleteClip: (clipId) => ipcRenderer.invoke('delete-clip', clipId),
@@ -16,7 +18,7 @@ contextBridge.exposeInMainWorld('api', {
   getAudioPeaks: (clipId) => ipcRenderer.invoke('get-audio-peaks', clipId),
   saveManifest: (data) => ipcRenderer.invoke('save-manifest', data),
   loadManifest: () => ipcRenderer.invoke('load-manifest'),
-  saveDeck: (data) => ipcRenderer.invoke('save-deck', data),
+  saveDeck: (data, opts) => ipcRenderer.invoke('save-deck', data, opts),
   loadDeck: () => ipcRenderer.invoke('load-deck'),
   loadDeckPath: (path) => ipcRenderer.invoke('load-deck-path', path),
   getRecentDecks: () => ipcRenderer.invoke('get-recent-decks'),
@@ -27,9 +29,12 @@ contextBridge.exposeInMainWorld('api', {
   getFfmpegVersion: () => ipcRenderer.invoke('get-ffmpeg-version'),
   forceCheckUpdates: () => ipcRenderer.invoke('force-check-updates'),
   onDownloadProgress: (callback) => {
-    ipcRenderer.on('download-progress', (_event, data) => callback(data));
+    ipcRenderer.on('download-progress', (_event, data: DownloadProgressEvent) => callback(data));
   },
   onBinarySetup: (callback) => {
-    ipcRenderer.on('binary-setup', (_event, data) => callback(data));
+    ipcRenderer.on('binary-setup', (_event, data: BinarySetupEvent) => callback(data));
   },
-});
+};
+
+contextBridge.exposeInMainWorld('win', winApi);
+contextBridge.exposeInMainWorld('api', api);
