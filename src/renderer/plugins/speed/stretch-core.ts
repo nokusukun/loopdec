@@ -7,14 +7,26 @@
 //   tempo = 2.0  →  output is 0.5× as long (faster playback, same pitch)
 
 const GRAIN_MS = 40;
-// WSOLA search half-window. Smaller = faster, fewer offsets to correlate.
-// 2ms covers most pitch periods above ~250 Hz, which is good enough for
-// sample-style loops; below that we accept some phasing.
-const SEARCH_MS = 2;
-// Stride through the search range. 2 cuts correlation evaluations in half
-// for a small quality cost — picked grains are still within 1 sample of the
-// best, never the *worst* match.
-const SEARCH_STEP = 2;
+// WSOLA search half-window. Must span at least one full period of the
+// lowest content frequency, otherwise grain placement can't lock to it and
+// we hear audible warble / phase beating. Threshold table at 44.1 kHz:
+//   2 ms → catches ≥ 500 Hz   (whistle, sibilants, treble)
+//   5 ms → catches ≥ 200 Hz   (most vocal range, mid instruments)
+//  10 ms → catches ≥ 100 Hz   (male voice, low instruments, kick body)
+//  20 ms → catches ≥  50 Hz   (sub-bass)
+// 10ms is the sampler default — covers musical content down through bass.
+// Cost in the inner correlation loop is linear in this value; we offset it
+// with coarse-to-fine search below.
+const SEARCH_MS = 10;
+// Fine pass stride: 1 = evaluate every sample for the cleanest alignment.
+const SEARCH_STEP = 1;
+// Coarse-to-fine scheme: the full search is expensive with SEARCH_MS=10,
+// so we sweep every COARSE_STEP-th offset to locate the correlation peak,
+// then refine within ±COARSE_STEP of the winner at step 1. This is safe
+// because correlation peaks for tonal content are at least one pitch
+// period wide (≥ 100 Hz → 441 samples at 44.1 kHz), so a stride of 8
+// samples (≈ 0.18 ms) can't fall between adjacent peaks.
+const COARSE_STEP = 8;
 
 function buildHann(grain: number): Float32Array {
   const w = new Float32Array(grain);
@@ -53,11 +65,25 @@ export function stretchChannels(
     let inPos  = HOP_IN;
 
     while (outPos + GRAIN <= outputLength && inPos + GRAIN <= inData.length) {
-      // WSOLA: pick the input start within ±SEARCH that best correlates with
-      // the overlap region we're about to write into.
+      // WSOLA coarse-to-fine search. Phase 1 sweeps the full ±SEARCH range
+      // at COARSE_STEP stride; Phase 2 refines around that winner at step 1.
+      // Keeps grain alignment within 1 sample of the true peak at a small
+      // fraction of full-search cost.
       let bestOffset = 0;
       let bestScore  = -Infinity;
-      for (let offset = -SEARCH; offset <= SEARCH; offset += SEARCH_STEP) {
+      for (let offset = -SEARCH; offset <= SEARCH; offset += COARSE_STEP) {
+        const start = inPos + offset;
+        if (start < 0 || start + HOP_OUT > inData.length) continue;
+        let score = 0;
+        for (let i = 0; i < HOP_OUT; i++) {
+          score += outData[outPos + i] * inData[start + i];
+        }
+        if (score > bestScore) { bestScore = score; bestOffset = offset; }
+      }
+      const fineLo = Math.max(-SEARCH, bestOffset - COARSE_STEP + 1);
+      const fineHi = Math.min( SEARCH, bestOffset + COARSE_STEP - 1);
+      for (let offset = fineLo; offset <= fineHi; offset += SEARCH_STEP) {
+        if (offset === bestOffset) continue;
         const start = inPos + offset;
         if (start < 0 || start + HOP_OUT > inData.length) continue;
         let score = 0;

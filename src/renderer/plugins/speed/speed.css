@@ -1,146 +1,379 @@
-/* Per-tile speed control. Compact horizontal slider with log-mapped track
-   (0.5×–2× → frac 0–1, 1.0× at midpoint), numeric readout (editable on
-   double-click), and a HOLD toggle for pitch-preserving time-stretch. */
+/* Speed / Pitch module — lab-instrument styling.
+   Two parameter zones (RATE, PIT) framed like silkscreened panel sections,
+   each with a deeply recessed LCD readout and a calibrated slider rail
+   (ticked at musical landmarks). The LINK button between them is rendered
+   as a physical coupling: two stacked pills that come together when locked
+   and break apart when free. */
 
 #speed-panel {
-  flex-shrink: 0;
-  background: var(--bg-screen);
-  box-shadow: inset 0 0 0 1px var(--border-subtle), inset 0 1px 2px oklch(0 0 0 / 0.5);
-  padding: 0 10px;
-  height: 34px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 38px;
+  grid-template-rows: 1fr 1fr;
+  grid-template-areas:
+    "rate  link"
+    "pitch link";
+  gap: 8px 12px;
+  padding: 8px 12px 10px;
+  min-height: 0;
 }
-.speed-label {
+
+/* ── A parameter zone (RATE or PIT) ──────────────────────────────────
+   Internal grid: the LCD frame on the left spans both the rail row and
+   the calibration-scale row, so it reads as one tall element next to a
+   smaller stack on the right. */
+.speed-zone {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto auto;
+  grid-template-areas:
+    "tag      tag"
+    "display  track"
+    "display  scale";
+  column-gap: 14px;
+  row-gap: 3px;
+  align-items: center;
+  min-width: 0;
+}
+.speed-zone[data-axis="rate"]  { grid-area: rate; }
+.speed-zone[data-axis="pitch"] { grid-area: pitch; }
+
+/* Silkscreened parameter label printed at the top. Slight engraved feel
+   from the soft dark shadow against the panel surface. */
+.speed-zone-tag {
+  grid-area: tag;
   font-family: var(--font-mono);
   font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0.32em;
-  color: var(--text-secondary);
-  flex-shrink: 0;
+  letter-spacing: 0.36em;
+  color: var(--text-muted);
+  text-shadow: 0 1px 0 oklch(0 0 0 / 0.5);
+  user-select: none;
 }
-.speed-track {
-  flex: 1;
+
+/* ── LCD frame ─────────────────────────────────────────────────────
+   Recessed black-glass display: deep inner shadows + a hint of bezel
+   stroke. The amber digits float above a fine scanline pattern. */
+.speed-display {
+  grid-area: display;
   position: relative;
-  height: 18px;
-  background: oklch(0.05 0.005 60);
-  box-shadow: inset 0 0 0 1px var(--border-subtle);
-  cursor: ew-resize;
-  overflow: hidden;
-  transition: background 0.1s ease-out, box-shadow 0.1s ease-out;
+  display: inline-flex;
+  align-items: baseline;
+  /* Push the value+unit cluster to the right edge of the LCD, calculator-
+     style. The unit acts as the anchor on the right; the value's digits
+     extend leftward as they grow ("+0" → "−3.5" → "−12.5") without
+     re-centring the layout. */
+  justify-content: flex-end;
+  gap: 5px;
+  /* Fixed width so the LCD frame itself never reflows. Both zones share
+     this width so the two LCDs line up vertically. */
+  width: 108px;
+  height: 100%;
+  padding: 6px 12px 7px;
+  box-sizing: border-box;
+  background:
+    /* very faint scanlines for that backlit-LCD texture */
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 2px,
+      oklch(0 0 0 / 0.18) 2px,
+      oklch(0 0 0 / 0.18) 3px
+    ),
+    /* base black-glass with subtle radial */
+    radial-gradient(ellipse at 50% 35%, oklch(0.06 0.005 60), oklch(0.025 0.003 60));
+  box-shadow:
+    /* outer hairline + recessed bezel */
+    0 1px 0 oklch(1 0 0 / 0.04),
+    inset 0 0 0 1px oklch(0 0 0 / 0.9),
+    inset 0 0 0 2px oklch(0.16 0.004 60 / 0.55),
+    inset 0 3px 8px oklch(0 0 0 / 0.85);
 }
-.speed-track:hover {
-  background: oklch(0.07 0.008 80);
-  box-shadow: inset 0 0 0 1px var(--border);
-}
-.speed-detent {
-  position: absolute;
-  top: 0; bottom: 0; left: 50%;
-  width: 1px;
-  background: var(--text-muted);
-  transform: translateX(-0.5px);
-  pointer-events: none;
-  opacity: 0.55;
-}
-.speed-thumb {
-  position: absolute;
-  top: 3px; bottom: 3px;
-  width: 5px;
-  background: var(--text-muted);
-  box-shadow: 0 0 0 1px oklch(0 0 0 / 0.55), inset 1px 0 0 oklch(1 0 0 / 0.08);
-  transform: translateX(-2.5px);
-  pointer-events: none;
-  transition: left 0.06s linear, background 0.1s ease-out, box-shadow 0.15s ease-out;
-}
-#speed-panel[data-active="true"] .speed-thumb {
-  background: var(--accent);
-  box-shadow: 0 0 0 1px oklch(0 0 0 / 0.55), 0 0 5px var(--accent-glow), inset 1px 0 0 oklch(1 0 0 / 0.2);
-}
-#speed-panel[data-state="dragging"] .speed-thumb {
-  background: var(--accent-hover);
-  box-shadow: 0 0 0 1px oklch(0 0 0 / 0.55), 0 0 7px var(--accent-glow), inset 1px 0 0 oklch(1 0 0 / 0.25);
-}
+
 .speed-readout {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 22px;
   font-weight: 700;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.04em;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
-  width: 52px;
+  line-height: 1;
+  /* Reserve enough space for the widest numeric reading (e.g. "−12.5"),
+     right-aligned so shorter values like "+0" pad on the left without
+     shifting the unit beside them. */
+  min-width: 4.6ch;
   text-align: right;
-  flex-shrink: 0;
-  transition: color 0.12s ease-out, box-shadow 0.12s ease-out;
   cursor: text;
-  padding: 1px 3px;
-  margin: -1px -3px;
+  transition: color 0.15s ease-out, text-shadow 0.2s ease-out;
 }
-#speed-panel[data-active="true"] .speed-readout { color: var(--accent); }
+.speed-readout-unit {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: var(--text-muted);
+  opacity: 0.7;
+  align-self: baseline;
+  transform: translateY(-1px);
+}
+
+/* Active state: readout lights amber with a soft halo. The unit follows
+   subtly so the LCD reads as one lit panel. */
+.speed-zone[data-axis="rate"]:where(#speed-panel[data-rate-active="true"]   *) .speed-readout,
+.speed-zone[data-axis="pitch"]:where(#speed-panel[data-pitch-active="true"] *) .speed-readout {
+  color: var(--accent);
+  text-shadow: 0 0 12px oklch(0.80 0.14 80 / 0.55);
+}
+.speed-zone[data-axis="rate"]:where(#speed-panel[data-rate-active="true"]   *) .speed-readout-unit,
+.speed-zone[data-axis="pitch"]:where(#speed-panel[data-pitch-active="true"] *) .speed-readout-unit {
+  color: var(--accent-muted);
+  opacity: 0.95;
+}
+#waveform-panel[data-playing="true"] .speed-zone[data-axis="rate"]:where(#speed-panel[data-rate-active="true"]   *) .speed-readout,
+#waveform-panel[data-playing="true"] .speed-zone[data-axis="pitch"]:where(#speed-panel[data-pitch-active="true"] *) .speed-readout {
+  color: var(--led-play);
+  text-shadow: 0 0 12px oklch(0.74 0.18 145 / 0.5);
+}
+
 .speed-readout[contenteditable="true"] {
   outline: none;
   box-shadow: inset 0 0 0 1px var(--accent);
   color: var(--accent);
   caret-color: var(--accent);
-  cursor: text;
   user-select: text;
 }
 
-/* HOLD toggle — sampler-style "preserve pitch" button. */
-.speed-lock-btn {
+/* ── Slider rail ──────────────────────────────────────────────────── */
+.speed-track {
+  grid-area: track;
   position: relative;
+  height: 18px;
+  background: oklch(0.05 0.005 60);
+  box-shadow:
+    inset 0 0 0 1px oklch(0 0 0 / 0.9),
+    inset 0 1px 3px oklch(0 0 0 / 0.7);
+  cursor: ew-resize;
   overflow: hidden;
+  transition: box-shadow 0.15s ease-out, opacity 0.15s ease-out;
+}
+
+/* Subtle machined-rail texture — fine vertical lines that the thumb
+   slides over. Reads as engraved aluminium under scrutiny, fades into
+   neutral grain at a glance. */
+.speed-track-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(
+      to right,
+      transparent 0,
+      transparent calc(6.25% - 0.5px),
+      oklch(0.12 0.004 60) calc(6.25% - 0.5px),
+      oklch(0.12 0.004 60) 6.25%
+    );
+  opacity: 0.55;
+}
+
+/* Detent — the visible "home position" mark inscribed on the rail. */
+.speed-detent {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 50%;
+  width: 1px;
+  background: var(--text-muted);
+  transform: translateX(-0.5px);
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+/* Fader cap — dimensional left-to-right gradient with top highlight
+   and bottom shadow for a tactile, slightly machined feel. Recolours
+   amber when its zone is active (with a soft outer halo). */
+.speed-thumb {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  width: 10px;
+  background: linear-gradient(
+    to right,
+    oklch(0.28 0.006 60) 0%,
+    oklch(0.46 0.008 60) 30%,
+    oklch(0.42 0.007 60) 70%,
+    oklch(0.26 0.005 60) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.14),
+    inset 0 -1px 0 oklch(0 0 0 / 0.45),
+    inset 1px 0 0 oklch(1 0 0 / 0.06),
+    inset -1px 0 0 oklch(0 0 0 / 0.3),
+    0 0 0 1px oklch(0 0 0 / 0.7);
+  transform: translateX(-5px);
+  pointer-events: none;
+  transition: left 0.06s linear, background 0.18s ease-out, box-shadow 0.22s ease-out;
+}
+.speed-zone[data-axis="rate"]:where(#speed-panel[data-rate-active="true"]   *) .speed-thumb,
+.speed-zone[data-axis="pitch"]:where(#speed-panel[data-pitch-active="true"] *) .speed-thumb {
+  background: linear-gradient(
+    to right,
+    oklch(0.52 0.13 80) 0%,
+    oklch(0.86 0.18 80) 30%,
+    oklch(0.78 0.16 80) 70%,
+    oklch(0.46 0.10 80) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.2),
+    inset 0 -1px 0 oklch(0 0 0 / 0.3),
+    0 0 0 1px oklch(0 0 0 / 0.7),
+    0 0 10px oklch(0.80 0.14 80 / 0.6);
+}
+#speed-panel[data-state-rate="dragging"]  .speed-zone[data-axis="rate"]  .speed-thumb,
+#speed-panel[data-state-pitch="dragging"] .speed-zone[data-axis="pitch"] .speed-thumb {
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.22),
+    0 0 0 1px oklch(0 0 0 / 0.7),
+    0 0 14px oklch(0.80 0.14 80 / 0.75);
+}
+
+/* Pitch row when LINK is on: rail is visibly driven, not interactive. */
+#speed-panel[data-link="true"] .speed-zone[data-axis="pitch"] .speed-track {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+#speed-panel[data-link="true"] .speed-zone[data-axis="pitch"] .speed-readout {
+  cursor: default;
+}
+
+/* ── Calibration scale (ticks + numbered marks) ──────────────────── */
+.speed-scale {
+  grid-area: scale;
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+.speed-scale > span {
+  position: relative;
+  padding-top: 5px;
+  white-space: nowrap;
+}
+.speed-scale > span::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 1px;
+  height: 3px;
+  background: var(--border);
+  transform: translateX(-0.5px);
+}
+.speed-scale > span:first-child::before { left: 0; transform: none; }
+.speed-scale > span:last-child::before  { left: auto; right: 0; transform: none; }
+.speed-scale > span.speed-scale-zero {
+  color: var(--text-secondary);
+}
+.speed-scale > span.speed-scale-zero::before {
+  height: 4px;
+  background: var(--text-muted);
+}
+
+/* ── LINK button (the coupling) ──────────────────────────────────── */
+.speed-link-btn {
+  grid-area: link;
+  position: relative;
   isolation: isolate;
-  height: 20px;
-  padding: 0 7px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 0;
   border: 1px solid var(--border);
   background: var(--bg-elevated);
   color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
   cursor: pointer;
-  flex-shrink: 0;
   box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.02);
-  transition: background 0.1s, color 0.1s, border-color 0.1s, box-shadow 0.15s;
+  transition: background 0.18s, color 0.18s, border-color 0.18s, box-shadow 0.25s;
 }
-/* Keep the label above the scan layer. */
-.speed-lock-btn > * { position: relative; z-index: 1; }
-.speed-lock-btn:hover {
+.speed-link-btn > * { position: relative; z-index: 1; }
+
+/* Coupling glyph — two stacked pills. When pressed (LINK on) they pull
+   together. When unpressed they visibly separate. The motion is on
+   transform-only so it composites cleanly. */
+.speed-link-coupling {
+  position: relative;
+  width: 16px;
+  height: 22px;
+}
+.speed-link-bar {
+  position: absolute;
+  left: 50%;
+  width: 14px;
+  height: 5px;
+  border-radius: 3px;
+  background: currentColor;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.18),
+    inset 0 -1px 0 oklch(0 0 0 / 0.35);
+  transform: translateX(-50%);
+  transition: transform 0.24s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.speed-link-bar:nth-child(1) { top: 4px; }
+.speed-link-bar:nth-child(2) { bottom: 4px; }
+.speed-link-btn[aria-pressed="true"]  .speed-link-bar:nth-child(1) { transform: translate(-50%, 3px); }
+.speed-link-btn[aria-pressed="true"]  .speed-link-bar:nth-child(2) { transform: translate(-50%, -3px); }
+.speed-link-btn[aria-pressed="false"] .speed-link-bar:nth-child(1) { transform: translate(-50%, -3px); }
+.speed-link-btn[aria-pressed="false"] .speed-link-bar:nth-child(2) { transform: translate(-50%, 3px); }
+
+.speed-link-label {
+  writing-mode: vertical-lr;
+  text-orientation: upright;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  line-height: 1;
+}
+
+.speed-link-btn:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
   border-color: var(--border-strong);
 }
-.speed-lock-btn[aria-pressed="true"] {
+.speed-link-btn[aria-pressed="true"] {
   background: oklch(0.16 0.03 80);
   color: var(--accent);
   border-color: var(--accent-muted);
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.04), 0 0 6px var(--accent-glow);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.04), 0 0 8px var(--accent-glow);
 }
-.speed-lock-btn[aria-pressed="true"]:hover {
-  color: var(--accent-hover);
-  border-color: var(--accent);
+.speed-link-btn[aria-pressed="true"] .speed-link-bar {
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.3),
+    inset 0 -1px 0 oklch(0 0 0 / 0.45),
+    0 0 4px oklch(0.80 0.14 80 / 0.5);
 }
-.speed-lock-btn:active {
+.speed-link-btn:active {
   background: var(--bg-base);
   box-shadow: inset 0 1px 2px oklch(0 0 0 / 0.4);
 }
 
-/* "Computing" state — a raster scan sweeps across the button face while the
-   stretch runs in the worker. Constant-width: the HOLD label never shifts.
-   Pure transform animation → composited, no layout work. */
-.speed-lock-btn[data-busy="true"]::before {
+/* "Computing" sweep — vertical raster while a stretch job is in flight. */
+.speed-link-btn[data-busy="true"]::before {
   content: '';
   position: absolute;
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  /* Hot stripe with a soft halo around it. Reads as a CRT raster line moving
-     across the panel face. Tighter falloff than a generic shimmer so it
-     scans rather than smears. */
   background: linear-gradient(
-    90deg,
+    180deg,
     transparent 0%,
     oklch(0.92 0.18 80 / 0.0)  38%,
     oklch(0.92 0.18 80 / 0.55) 49%,
@@ -149,44 +382,17 @@
     oklch(0.92 0.18 80 / 0.0)  62%,
     transparent 100%
   );
-  /* Screen blend so the stripe brightens on amber (HOLD active) AND on the
-     neutral fill (HOLD off-but-stretching), no special-case styles. */
   mix-blend-mode: screen;
-  transform: translate3d(-100%, 0, 0);
-  animation: speed-lock-scan 1.05s cubic-bezier(0.42, 0, 0.58, 1) infinite;
+  transform: translate3d(0, -100%, 0);
+  animation: speed-link-scan 1.05s cubic-bezier(0.42, 0, 0.58, 1) infinite;
   will-change: transform;
 }
-
-/* A pair of LCD tick marks at the bottom edge — quiet under the moving
-   scanline, locks the eye on the button so the user knows where to look. */
-.speed-lock-btn[data-busy="true"]::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 1px;
-  z-index: 0;
-  pointer-events: none;
-  background-image: repeating-linear-gradient(
-    90deg,
-    var(--accent) 0 2px,
-    transparent  2px 6px
-  );
-  opacity: 0.55;
+@keyframes speed-link-scan {
+  0%   { transform: translate3d(0, -100%, 0); }
+  82%  { transform: translate3d(0,  100%, 0); }
+  100% { transform: translate3d(0,  100%, 0); }
 }
-
-@keyframes speed-lock-scan {
-  /* Linear sweep with a brief settle at the right edge before re-entering. */
-  0%   { transform: translate3d(-100%, 0, 0); }
-  82%  { transform: translate3d( 100%, 0, 0); }
-  100% { transform: translate3d( 100%, 0, 0); }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .speed-lock-btn[data-busy="true"]::before {
-    animation: none;
-    transform: none;
-    opacity: 0.35;
-  }
+  .speed-link-btn[data-busy="true"]::before { animation: none; transform: none; opacity: 0.35; }
+  .speed-link-bar { transition: none; }
 }

@@ -1,0 +1,69 @@
+<aside id="reverb-panel" data-active="false" data-mix-active="false" aria-label="Per-tile reverb">
+  <section class="rv-row" data-axis="size">
+    <span class="rv-tag">SIZE</span>
+    <div class="rv-display">
+      <span class="rv-readout" id="reverb-size-readout">1.5</span>
+      <span class="rv-readout-unit" aria-hidden="true">S</span>
+    </div>
+    <div class="rv-track" id="reverb-size-track">
+      <div class="rv-track-grid" aria-hidden="true"></div>
+      <div class="rv-thumb"></div>
+    </div>
+    <div class="rv-scale" aria-hidden="true">
+      <span>0.1</span>
+      <span>0.5</span>
+      <span class="rv-scale-zero">1.5</span>
+      <span>3.0</span>
+      <span>6.0</span>
+    </div>
+  </section>
+
+  <section class="rv-row" data-axis="damp">
+    <span class="rv-tag">DAMP</span>
+    <div class="rv-display">
+      <span class="rv-readout" id="reverb-damp-readout">40</span>
+      <span class="rv-readout-unit" aria-hidden="true">%</span>
+    </div>
+    <div class="rv-track" id="reverb-damp-track">
+      <div class="rv-track-grid" aria-hidden="true"></div>
+      <div class="rv-thumb"></div>
+    </div>
+    <div class="rv-scale" aria-hidden="true">
+      <span>bright</span>
+      <span></span>
+      <span class="rv-scale-zero">warm</span>
+      <span></span>
+      <span>dark</span>
+    </div>
+  </section>
+
+  <section class="rv-row" data-axis="mix">
+    <span class="rv-tag">MIX</span>
+    <div class="rv-display">
+      <span class="rv-readout" id="reverb-mix-readout">0</span>
+      <span class="rv-readout-unit" aria-hidden="true">%</span>
+    </div>
+    <div class="rv-track" id="reverb-mix-track">
+      <div class="rv-track-grid" aria-hidden="true"></div>
+      <div class="rv-thumb"></div>
+    </div>
+    <div class="rv-scale" aria-hidden="true">
+      <span>dry</span>
+      <span></span>
+      <span class="rv-scale-zero">50</span>
+      <span></span>
+      <span>wet</span>
+    </div>
+  </section>
+
+  <button
+    id="reverb-power"
+    class="rv-power-btn"
+    type="button"
+    aria-pressed="false"
+    title="Reverb on/off — drops MIX to 0 / restores the last setting (defaults to 50%)."
+  >
+    <span class="rv-power-led" aria-hidden="true"></span>
+    <span class="rv-power-label">ON</span>
+  </button>
+</aside>

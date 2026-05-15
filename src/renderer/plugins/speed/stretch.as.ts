@@ -7,8 +7,14 @@
 // raw computational core — no AS heap, no managed types.
 
 const GRAIN_MS:    f32 = 40.0;
-const SEARCH_MS:   f32 = 2.0;
-const SEARCH_STEP: i32 = 2;
+// Must mirror stretch-core.ts. 10ms half-window covers pitch periods down
+// to ~100 Hz (male vocals, kick body, bass). We pay for that with a
+// coarse-to-fine search: sweep ±SEARCH at COARSE_STEP, then refine within
+// ±(COARSE_STEP-1) at step 1. Total inner loops ≈ SEARCH/4 + 15, vs full
+// 2·SEARCH+1, with no perceptible quality loss for musical content.
+const SEARCH_MS:   f32 = 10.0;
+const SEARCH_STEP: i32 = 1;
+const COARSE_STEP: i32 = 8;
 
 // Predict the output sample count for a given input length / tempo.
 // JS uses this to size the output region of memory before calling stretchMono.
@@ -63,8 +69,9 @@ export function stretchMono(
   let inPos:  i32 = hopIn;
 
   while (outPos + grain <= outLen && inPos + grain <= inLen) {
-    // WSOLA: pick the input start within ±SEARCH that best correlates with
-    // the overlap region we're about to write into.
+    // WSOLA coarse-to-fine. Phase 1: sweep ±SEARCH at COARSE_STEP stride to
+    // locate the correlation peak's neighbourhood. Phase 2: refine within
+    // ±(COARSE_STEP-1) of that winner at step 1 for the final pick.
     let bestOffset: i32 = 0;
     let bestScore:  f32 = <f32>-3.4e38;
 
@@ -79,6 +86,27 @@ export function stretchMono(
           score += load<f32>(outBase + (i << 2)) * load<f32>(inBase + (i << 2));
         }
         if (score > bestScore) { bestScore = score; bestOffset = offset; }
+      }
+      offset += COARSE_STEP;
+    }
+
+    let fineLo: i32 = bestOffset - COARSE_STEP + 1;
+    let fineHi: i32 = bestOffset + COARSE_STEP - 1;
+    if (fineLo < -search) fineLo = -search;
+    if (fineHi >  search) fineHi =  search;
+    offset = fineLo;
+    while (offset <= fineHi) {
+      if (offset != bestOffset) {
+        const start: i32 = inPos + offset;
+        if (start >= 0 && start + hopOut <= inLen) {
+          let score: f32 = 0.0;
+          const outBase: i32 = outPtr + (outPos << 2);
+          const inBase:  i32 = inPtr  + (start  << 2);
+          for (let i: i32 = 0; i < hopOut; i++) {
+            score += load<f32>(outBase + (i << 2)) * load<f32>(inBase + (i << 2));
+          }
+          if (score > bestScore) { bestScore = score; bestOffset = offset; }
+        }
       }
       offset += SEARCH_STEP;
     }

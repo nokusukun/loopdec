@@ -11,6 +11,7 @@ import { updateTileLoopIndicator } from './tile-display';
 import { saveManifest } from '../persistence/manifest';
 import { formatTimePrecise } from '../utils';
 import { loadTileIntoEditor } from '../plugins/registry';
+import { resetActivePage, getActivePage } from './editor-pages';
 
 let lastCanvasW = 0;
 let lastCanvasH = 0;
@@ -342,6 +343,7 @@ export function openWaveformEditor(tileId: string): void {
   waveformAddressEl.textContent = padAddress(tile.row ?? 0, tile.col ?? 0);
   updateWaveformTimes(tile);
   loadTileIntoEditor(tile);
+  resetActivePage();
 
   waveformPanel.classList.add('open');
   document.body.classList.add('waveform-open');
@@ -409,7 +411,12 @@ function startWaveformAnimation(): void {
       }
     }
 
-    drawWaveform(editor.cachedPeaks, tile.loopStart, tile.loopEnd, source.duration, pos);
+    // Skip the redraw when the Sample page isn't visible — its canvas has
+    // zero dimensions and the work would be wasted. The animation loop keeps
+    // ticking so view-tracking math above stays current.
+    if (getActivePage() === 'sample') {
+      drawWaveform(editor.cachedPeaks, tile.loopStart, tile.loopEnd, source.duration, pos);
+    }
     editor.animId = requestAnimationFrame(tick);
   };
   editor.animId = requestAnimationFrame(tick);

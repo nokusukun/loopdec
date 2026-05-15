@@ -1,0 +1,300 @@
+/* Reverb plugin — three labelled parameter rows rendered inside an FX
+   rack module. Matches the Speed module's visual language: silkscreen
+   tags, deeply-recessed LCD readouts (right-aligned digits, unit anchored
+   on the right), engraved rails with fader-cap thumbs, and small ticked
+   calibration scales below each rail. */
+
+#reverb-panel {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 38px;
+  grid-template-rows: 1fr 1fr 1fr;
+  grid-template-areas:
+    "row1 power"
+    "row2 power"
+    "row3 power";
+  column-gap: 12px;
+  row-gap: 6px;
+  padding: 8px 14px 10px;
+  min-height: 0;
+}
+.rv-row[data-axis="size"] { grid-area: row1; }
+.rv-row[data-axis="damp"] { grid-area: row2; }
+.rv-row[data-axis="mix"]  { grid-area: row3; }
+
+/* ── A parameter row (SIZE / DAMP / MIX) ──────────────────────────── */
+.rv-row {
+  display: grid;
+  grid-template-columns: 36px auto 1fr;
+  grid-template-rows: auto auto;
+  grid-template-areas:
+    "tag  display  track"
+    "tag  display  scale";
+  column-gap: 10px;
+  row-gap: 2px;
+  align-items: center;
+  min-width: 0;
+}
+
+.rv-tag {
+  grid-area: tag;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  color: var(--text-muted);
+  text-shadow: 0 1px 0 oklch(0 0 0 / 0.5);
+  user-select: none;
+}
+
+/* ── LCD frame ────────────────────────────────────────────────────── */
+.rv-display {
+  grid-area: display;
+  position: relative;
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 4px;
+  /* Fixed width keeps the LCD from reflowing as the readout text
+     length changes ("0" → "100"). All three rows share this width so
+     the rails line up vertically. */
+  width: 78px;
+  height: 100%;
+  padding: 5px 10px 6px;
+  box-sizing: border-box;
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 2px,
+      oklch(0 0 0 / 0.18) 2px,
+      oklch(0 0 0 / 0.18) 3px
+    ),
+    radial-gradient(ellipse at 50% 35%, oklch(0.06 0.005 60), oklch(0.025 0.003 60));
+  box-shadow:
+    0 1px 0 oklch(1 0 0 / 0.04),
+    inset 0 0 0 1px oklch(0 0 0 / 0.9),
+    inset 0 0 0 2px oklch(0.16 0.004 60 / 0.55),
+    inset 0 2px 6px oklch(0 0 0 / 0.85);
+}
+
+.rv-readout {
+  font-family: var(--font-mono);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  min-width: 2.6ch;
+  text-align: right;
+  cursor: text;
+  transition: color 0.15s ease-out, text-shadow 0.2s ease-out;
+}
+.rv-readout-unit {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: var(--text-muted);
+  opacity: 0.7;
+  align-self: baseline;
+  transform: translateY(-1px);
+}
+
+/* Active state — lit amber when reverb is contributing audibly (MIX > 0).
+   The size/damp readouts also light when the panel is "active" so the
+   whole module reads as engaged. Plays green when the tile is sounding. */
+#reverb-panel[data-mix-active="true"] .rv-readout {
+  color: var(--accent);
+  text-shadow: 0 0 10px oklch(0.80 0.14 80 / 0.5);
+}
+#reverb-panel[data-mix-active="true"] .rv-readout-unit {
+  color: var(--accent-muted);
+  opacity: 0.95;
+}
+#waveform-panel[data-playing="true"] #reverb-panel[data-mix-active="true"] .rv-readout {
+  color: var(--led-play);
+  text-shadow: 0 0 10px oklch(0.74 0.18 145 / 0.45);
+}
+
+.rv-readout[contenteditable="true"] {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--accent);
+  color: var(--accent);
+  caret-color: var(--accent);
+  user-select: text;
+}
+
+/* ── Slider rail ──────────────────────────────────────────────────── */
+.rv-track {
+  grid-area: track;
+  position: relative;
+  height: 14px;
+  background: oklch(0.05 0.005 60);
+  box-shadow:
+    inset 0 0 0 1px oklch(0 0 0 / 0.9),
+    inset 0 1px 3px oklch(0 0 0 / 0.7);
+  cursor: ew-resize;
+  overflow: hidden;
+  transition: box-shadow 0.15s ease-out;
+}
+.rv-track-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to right,
+    transparent 0,
+    transparent calc(6.25% - 0.5px),
+    oklch(0.12 0.004 60) calc(6.25% - 0.5px),
+    oklch(0.12 0.004 60) 6.25%
+  );
+  opacity: 0.55;
+}
+
+.rv-thumb {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  width: 8px;
+  background: linear-gradient(
+    to right,
+    oklch(0.28 0.006 60) 0%,
+    oklch(0.46 0.008 60) 30%,
+    oklch(0.42 0.007 60) 70%,
+    oklch(0.26 0.005 60) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.14),
+    inset 0 -1px 0 oklch(0 0 0 / 0.45),
+    inset 1px 0 0 oklch(1 0 0 / 0.06),
+    inset -1px 0 0 oklch(0 0 0 / 0.3),
+    0 0 0 1px oklch(0 0 0 / 0.7);
+  transform: translateX(-4px);
+  pointer-events: none;
+  transition: left 0.06s linear, background 0.18s ease-out, box-shadow 0.22s ease-out;
+}
+#reverb-panel[data-mix-active="true"] .rv-thumb {
+  background: linear-gradient(
+    to right,
+    oklch(0.52 0.13 80) 0%,
+    oklch(0.86 0.18 80) 30%,
+    oklch(0.78 0.16 80) 70%,
+    oklch(0.46 0.10 80) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.2),
+    inset 0 -1px 0 oklch(0 0 0 / 0.3),
+    0 0 0 1px oklch(0 0 0 / 0.7),
+    0 0 8px oklch(0.80 0.14 80 / 0.55);
+}
+#reverb-panel[data-state-size="dragging"] .rv-row[data-axis="size"] .rv-thumb,
+#reverb-panel[data-state-damp="dragging"] .rv-row[data-axis="damp"] .rv-thumb,
+#reverb-panel[data-state-mix="dragging"]  .rv-row[data-axis="mix"]  .rv-thumb {
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.22),
+    0 0 0 1px oklch(0 0 0 / 0.7),
+    0 0 12px oklch(0.80 0.14 80 / 0.7);
+}
+
+/* ── Calibration scale (ticks + labels) ──────────────────────────── */
+.rv-scale {
+  grid-area: scale;
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+  text-transform: uppercase;
+}
+.rv-scale > span {
+  position: relative;
+  padding-top: 4px;
+  min-width: 1ch;       /* keep empty slots from collapsing */
+  text-align: center;
+  white-space: nowrap;
+}
+.rv-scale > span::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 1px;
+  height: 3px;
+  background: var(--border);
+  transform: translateX(-0.5px);
+}
+.rv-scale > span:first-child::before { left: 0; transform: none; }
+.rv-scale > span:last-child::before  { left: auto; right: 0; transform: none; }
+.rv-scale > span:empty { padding-top: 0; }
+.rv-scale > span:empty::before { height: 2px; background: oklch(0 0 0 / 0.3); }
+.rv-scale > span.rv-scale-zero {
+  color: var(--text-secondary);
+}
+.rv-scale > span.rv-scale-zero::before {
+  height: 4px;
+  background: var(--text-muted);
+}
+
+/* ── Power button — full-height switch on the right ──────────────── */
+.rv-power-btn {
+  grid-area: power;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 0;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.02);
+  transition: background 0.18s, color 0.18s, border-color 0.18s, box-shadow 0.25s;
+}
+
+.rv-power-led {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--led-power-dim);
+  box-shadow: inset 0 0 0 0.5px oklch(0 0 0 / 0.6);
+  transition: background 0.15s, box-shadow 0.2s;
+}
+
+.rv-power-label {
+  writing-mode: vertical-lr;
+  text-orientation: upright;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  line-height: 1;
+}
+
+.rv-power-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+.rv-power-btn[aria-pressed="true"] {
+  background: oklch(0.16 0.03 80);
+  color: var(--accent);
+  border-color: var(--accent-muted);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.04), 0 0 8px var(--accent-glow);
+}
+.rv-power-btn[aria-pressed="true"] .rv-power-led {
+  background: var(--accent);
+  box-shadow: 0 0 5px var(--accent-glow), inset 0 0 0 0.5px oklch(1 0 0 / 0.2);
+}
+.rv-power-btn:active {
+  background: var(--bg-base);
+  box-shadow: inset 0 1px 2px oklch(0 0 0 / 0.4);
+}

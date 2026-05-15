@@ -1,4 +1,8 @@
-/* Waveform editor (sample-edit screen) — fixed-bottom recessed panel */
+/* Waveform editor — bottom-drawer "sample edit screen" on the panel.
+   Sampler-style paged layout: a numbered tab strip selects which page is
+   active inside the panel body. Page 1 is always the Sample page (waveform
+   + loop region); subsequent pages come from registered tile plugins. */
+
 #waveform-panel {
   position: fixed;
   bottom: 0;
@@ -11,31 +15,27 @@
   transform: translateY(100%);
   transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
   z-index: 100;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: 28px 1fr;
   padding: 8px 12px 10px;
   gap: 8px;
 }
 
-#waveform-panel.open {
-  transform: translateY(0);
-}
+#waveform-panel.open { transform: translateY(0); }
 
+/* ── Top bar: title cluster + page tabs + close, single row ───────── */
 #waveform-header {
   display: flex;
-  align-items: center;
-  height: 26px;
-  flex-shrink: 0;
-  gap: 10px;
+  align-items: stretch;
+  gap: 12px;
 }
 
-/* Title cluster — EDIT tag · pad address · source title */
 .waveform-title-cluster {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex: 1;
   min-width: 0;
+  flex-shrink: 1;
 }
 .waveform-edit-tag {
   font-family: var(--font-mono);
@@ -57,51 +57,20 @@
   flex-shrink: 0;
 }
 #waveform-panel[data-playing="true"] .waveform-edit-tag { background: var(--led-play); }
-#waveform-panel[data-playing="true"] .waveform-address { color: var(--led-play); }
+#waveform-panel[data-playing="true"] .waveform-address  { color: var(--led-play); }
 
 #waveform-title {
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 500;
   color: var(--text-secondary);
-  flex: 1;
   min-width: 0;
+  max-width: 32ch;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   letter-spacing: 0.02em;
 }
-
-/* LCD-style IN/OUT readout */
-#waveform-times {
-  display: flex;
-  gap: 12px;
-  flex-shrink: 0;
-  align-items: stretch;
-  padding: 3px 8px;
-  background: var(--bg-screen);
-  box-shadow: inset 0 1px 2px oklch(0 0 0 / 0.5), inset 0 0 0 1px var(--border-subtle);
-}
-.wf-time {
-  display: flex;
-  align-items: baseline;
-  gap: 5px;
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-}
-.wf-time-label {
-  font-size: 8.5px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  color: var(--text-muted);
-}
-.wf-time span:last-child {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--accent);
-  letter-spacing: 0.04em;
-}
-#waveform-panel[data-playing="true"] .wf-time span:last-child { color: var(--led-play); }
 
 #waveform-close {
   width: 22px;
@@ -125,7 +94,116 @@
   border-color: var(--led-mute-dim);
 }
 
-/* Snap & offset rows (etched panel buttons) */
+/* ── Page tabs ────────────────────────────────────────────────────────
+   Sampler-style patch buttons. Sit between the title cluster and the close
+   button in the top bar. Single row, scrolls horizontally if many plugins
+   register. Active is amber-lit; inactive sits dim. */
+#page-tabs {
+  display: flex;
+  align-items: stretch;
+  margin-left: auto;
+  gap: 0;
+  background: var(--bg-screen);
+  box-shadow: inset 0 1px 2px oklch(0 0 0 / 0.5), inset 0 0 0 1px var(--border-subtle);
+  padding: 1px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  max-width: 60%;
+}
+#page-tabs::-webkit-scrollbar { display: none; }
+
+.page-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 0 10px 0 8px;
+  height: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+.page-tab + .page-tab::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 5px;
+  bottom: 5px;
+  width: 1px;
+  background: var(--border-subtle);
+  pointer-events: none;
+}
+.page-tab:hover { color: var(--text-primary); background: oklch(0.10 0.005 60 / 0.6); }
+.page-tab[data-active="true"] {
+  color: var(--accent);
+  background: oklch(0.10 0.025 80 / 0.55);
+}
+#waveform-panel[data-playing="true"] .page-tab[data-active="true"] { color: var(--led-play); }
+
+.page-tab-led {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--led-power-dim);
+  box-shadow: inset 0 0 0 0.5px oklch(0 0 0 / 0.55);
+  transition: background 0.12s, box-shadow 0.18s;
+  flex-shrink: 0;
+}
+.page-tab[data-active="true"] .page-tab-led {
+  background: var(--accent);
+  box-shadow: 0 0 4px var(--accent-glow), inset 0 0 0 0.5px oklch(1 0 0 / 0.2);
+}
+#waveform-panel[data-playing="true"] .page-tab[data-active="true"] .page-tab-led {
+  background: var(--led-play);
+  box-shadow: 0 0 4px var(--led-play), inset 0 0 0 0.5px oklch(1 0 0 / 0.2);
+}
+
+.page-tab-num {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.page-tab[data-active="true"] .page-tab-num { color: var(--text-secondary); }
+
+.page-tab-label {
+  font-size: 10.5px;
+  letter-spacing: 0.18em;
+}
+
+/* ── Page body & sections ─────────────────────────────────────────── */
+#page-body {
+  position: relative;
+  min-height: 0;
+}
+.editor-page {
+  position: absolute;
+  inset: 0;
+  display: none;
+  min-height: 0;
+}
+.editor-page[data-active="true"] { display: flex; flex-direction: column; }
+
+/* ── Sample page ──────────────────────────────────────────────────── */
+.editor-page[data-page-id="sample"] {
+  gap: 6px;
+}
+
+.sample-toolbar {
+  display: flex;
+  align-items: center;
+  height: 22px;
+  flex-shrink: 0;
+  gap: 10px;
+}
+
 #waveform-snap, #waveform-offset {
   display: flex;
   align-items: center;
@@ -187,10 +265,7 @@
   border-color: var(--accent-muted);
   box-shadow: inset 0 1px 2px oklch(0 0 0 / 0.4), 0 0 0 1px var(--accent-muted);
 }
-#snap-custom.active {
-  border-color: var(--accent);
-  color: var(--accent);
-}
+#snap-custom.active { border-color: var(--accent); color: var(--accent); }
 
 #waveform-offset label {
   font-family: var(--font-mono);
@@ -222,10 +297,36 @@
   color: var(--accent);
   border-color: var(--accent-muted);
 }
-#snap-offset-tap:active {
-  background: var(--bg-base);
-  box-shadow: inset 0 1px 2px oklch(0 0 0 / 0.4);
+
+#waveform-times {
+  display: flex;
+  gap: 12px;
+  margin-left: auto;
+  align-items: stretch;
+  padding: 3px 8px;
+  background: var(--bg-screen);
+  box-shadow: inset 0 1px 2px oklch(0 0 0 / 0.5), inset 0 0 0 1px var(--border-subtle);
 }
+.wf-time {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.wf-time-label {
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--text-muted);
+}
+.wf-time span:last-child {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+}
+#waveform-panel[data-playing="true"] .wf-time span:last-child { color: var(--led-play); }
 
 /* Minimap — viewport navigator strip */
 #waveform-minimap {
@@ -238,11 +339,7 @@
   flex-shrink: 0;
   overflow: hidden;
 }
-#waveform-minimap canvas {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
+#waveform-minimap canvas { width: 100%; height: 100%; display: block; }
 .minimap-viewport {
   position: absolute;
   top: 0;
@@ -265,14 +362,7 @@
   opacity: 0;
 }
 
-/* Main waveform canvas + tile params rack */
-#waveform-content {
-  flex: 1;
-  display: flex;
-  gap: 8px;
-  min-height: 0;
-}
-
+/* Waveform canvas fills the remaining vertical space on the sample page */
 #waveform-canvas {
   flex: 1;
   min-width: 0;
@@ -283,12 +373,78 @@
   cursor: crosshair;
 }
 
-/* Per-tile parameter rack (right side of editor). Plugin panels mount inside. */
-#tile-params {
-  width: 320px;
-  flex-shrink: 0;
+/* ── FX page ────────────────────────────────────────────────────────
+   2-column rack: each registered plugin renders as a "module" in the
+   grid. Cards have a small label strip on top and the plugin's own UI
+   in the body. As more plugins are added the rack grows downward; the
+   page scrolls when it can't fit. */
+.editor-page[data-page-id="fx"] { overflow: hidden; }
+
+#fx-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* Each rack row is at least tall enough for its modules' min-content; if
+     there's spare vertical space we stretch out to 1fr per row. With more
+     modules than fit, the rack scrolls instead of squeezing modules below
+     their working height. */
+  grid-auto-rows: minmax(min-content, 1fr);
+  gap: 10px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 2px;
+}
+#fx-grid::-webkit-scrollbar { width: 6px; }
+#fx-grid::-webkit-scrollbar-thumb { background: var(--bg-elevated); border-radius: 3px; }
+
+.fx-module {
+  position: relative;
+  display: grid;
+  grid-template-rows: 22px 1fr;
+  /* Minimum height tuned to fit the tallest plugin layout (Speed/Pitch's
+     two stacked slider rows + LINK rail). If the rack is taller than the
+     row stack needs, modules stretch via grid-auto-rows: 1fr above. */
+  min-height: 184px;
+  background: var(--bg-surface);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.02),
+    inset 0 0 0 1px var(--border-subtle);
+}
+.fx-module[data-fx-id]:hover {
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.025),
+    inset 0 0 0 1px var(--border);
+}
+
+.fx-module-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 22px;
+  padding: 0 10px;
+  background: var(--bg-base);
+  border-bottom: 1px solid var(--border-subtle);
+  user-select: none;
+}
+.fx-module-num {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.fx-module-label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  color: var(--text-secondary);
+}
+
+.fx-module-body {
+  position: relative;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  min-height: 0;
 }

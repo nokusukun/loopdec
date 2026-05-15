@@ -1,9 +1,55 @@
-<aside id="speed-panel" data-active="false" aria-label="Per-track playback speed">
-  <span class="speed-label">SPD</span>
-  <div class="speed-track" id="speed-track">
-    <div class="speed-detent"></div>
-    <div class="speed-thumb"></div>
-  </div>
-  <span class="speed-readout" id="speed-readout">1.00&times;</span>
-  <button id="speed-lock" class="speed-lock-btn" title="Hold pitch — preserve pitch when changing speed (time-stretch)" aria-pressed="false">HOLD</button>
+<aside id="speed-panel" data-active="false" data-link="true" aria-label="Per-tile rate and pitch">
+  <section class="speed-zone" data-axis="rate">
+    <span class="speed-zone-tag">RATE</span>
+    <div class="speed-display">
+      <span class="speed-readout" id="speed-readout">1.00</span>
+      <span class="speed-readout-unit" aria-hidden="true">×</span>
+    </div>
+    <div class="speed-track" id="speed-track">
+      <div class="speed-track-grid" aria-hidden="true"></div>
+      <div class="speed-detent" aria-hidden="true"></div>
+      <div class="speed-thumb"></div>
+    </div>
+    <div class="speed-scale" aria-hidden="true">
+      <span>0.5</span>
+      <span>0.75</span>
+      <span class="speed-scale-zero">1.0</span>
+      <span>1.5</span>
+      <span>2.0</span>
+    </div>
+  </section>
+
+  <button
+    id="speed-link"
+    class="speed-link-btn"
+    type="button"
+    aria-pressed="true"
+    title="LINK — pitch tracks rate (no time-stretch). Off → independent rate and pitch."
+  >
+    <span class="speed-link-coupling" aria-hidden="true">
+      <span class="speed-link-bar"></span>
+      <span class="speed-link-bar"></span>
+    </span>
+    <span class="speed-link-label">LINK</span>
+  </button>
+
+  <section class="speed-zone" data-axis="pitch">
+    <span class="speed-zone-tag">PIT</span>
+    <div class="speed-display">
+      <span class="speed-readout" id="pitch-readout">+0</span>
+      <span class="speed-readout-unit" aria-hidden="true">ST</span>
+    </div>
+    <div class="speed-track" id="pitch-track">
+      <div class="speed-track-grid" aria-hidden="true"></div>
+      <div class="speed-detent" aria-hidden="true"></div>
+      <div class="speed-thumb"></div>
+    </div>
+    <div class="speed-scale" aria-hidden="true">
+      <span>−12</span>
+      <span>−6</span>
+      <span class="speed-scale-zero">0</span>
+      <span>+6</span>
+      <span>+12</span>
+    </div>
+  </section>
 </aside>

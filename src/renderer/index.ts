@@ -18,8 +18,10 @@ import { bindIdle } from './ui/idle';
 import { bindPlugins } from './plugins/registry';
 import './plugins/eq';
 import './plugins/speed';
+import './plugins/reverb';
 import { bindLocalFiles } from './ui/local-files';
 import { bindPan } from './ui/pan';
+import { bindEditorPages } from './ui/editor-pages';
 import { restoreOutputDevice, applyStoredDeviceToContext } from './audio/output';
 import { onAudioContextCreated } from './audio/context';
 import { updateEmptyState } from './state';
@@ -37,6 +39,7 @@ bindUrlInput();
 bindDownloadProgress();
 bindIdle();
 bindPlugins();
+bindEditorPages();
 bindLocalFiles();
 bindPan();
 

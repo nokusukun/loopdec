@@ -1,13 +1,15 @@
-// Per-tile playback speed with optional pitch-lock (time-stretched).
+// Per-tile speed + independent pitch.
 //
-//   state          { speed: number, pitchLock: boolean }
-//   audio          source.playbackRate = speed (pitched)  OR
-//                  pre-stretched loop buffer + playbackRate = 1.0 (pitch-locked)
-//   video          tile.video.playbackRate = speed (always)
-//   UI             slider + numeric readout (editable on dblclick) + HOLD toggle
-//
-// Speed is fundamental to playback math, so this plugin also exports
-// getSpeed/getPitchLock for audio-engine to consume.
+//   state          { speed: number, pitch: number (semitones), link: boolean }
+//   audio          F = 2^(pitch/12) / speed
+//                  R = 2^(pitch/12)
+//                    F ≈ 1   →  source.playbackRate = R, no stretch
+//                    F  ≠ 1  →  pre-stretched buffer (by F), source.playbackRate = R
+//   video          tile.video.playbackRate = speed (always — video has no pitch)
+//   UI             two slider rows (RATE / PITCH) + LINK toggle. When LINK
+//                  is on, the pitch slider is driven by the speed slider:
+//                  pitch = 12·log2(speed). Audio takes the no-stretch path
+//                  because F = 2^(pitch/12)/speed = speed/speed = 1.
 
 import './speed.css';
 
@@ -24,60 +26,77 @@ import { stretchAudioBufferProgressive } from './time-stretch';
 
 interface SpeedState {
   speed: number;
-  pitchLock: boolean;
+  pitch: number;     // semitones offset from source
+  link: boolean;     // true → pitch follows speed naturally (no stretch)
 }
 
 const SPEED_MIN = 0.5;
 const SPEED_MAX = 2.0;
 const SPEED_STEP = 0.05;
 const SPEED_DEAD_ZONE = 0.03;
-const PITCHLOCK_DEBOUNCE_MS = 180;
 
-// Per-tile debounce handle for pitch-lock rebuilds. Per-tile so concurrent
-// edits on multiple tiles don't cancel each other's rebuild.
+const PITCH_MIN = -12;
+const PITCH_MAX = 12;
+const PITCH_STEP = 0.5;     // half-semitone resolution
+const PITCH_DEAD_ZONE = 0.25;
+
+const REBUILD_DEBOUNCE_MS = 180;
+// When |F − 1| is below this we skip time-stretching and run the cheap
+// BufferSource.playbackRate path. Catches the LINK-on case (F is exactly 1
+// by construction) and small float drift near it.
+const STRETCH_NOOP_EPSILON = 1e-3;
+
+// Per-tile debounce handle so a long stretch isn't kicked off on every
+// slider tick. Per-tile so concurrent edits on multiple tiles don't cancel
+// each other's rebuild.
 const rebuildTimers = new WeakMap<Tile, ReturnType<typeof setTimeout>>();
 
-// Pre-stretched loop buffer cache. onPlay consults this; if it doesn't match
-// the tile's current source/loop/speed, audio plays pitched (no pitch lock)
-// while the worker computes a fresh stretch off the main thread.
 interface StretchCacheEntry {
   buffer: AudioBuffer;
   speed: number;
-  loopStart: number;  // source-time
-  loopEnd: number;    // source-time
+  pitch: number;
+  loopStart: number;
+  loopEnd: number;
   sourceId: string;
 }
 const stretchCache = new WeakMap<Tile, StretchCacheEntry>();
 
-// Monotonic per-tile job id so late worker results from a superseded request
-// are silently discarded.
 const stretchJobIds = new WeakMap<Tile, number>();
 let nextStretchJobId = 1;
 
-// How many stretches are currently in flight for each tile. Drives the
-// "computing" state on the HOLD button so the user knows the pitch swap
-// is queued rather than ignored.
 const inFlight = new WeakMap<Tile, number>();
 function setInFlight(tile: Tile, delta: number): void {
   const prev = inFlight.get(tile) ?? 0;
   const next = Math.max(0, prev + delta);
   if (next === 0) inFlight.delete(tile);
   else inFlight.set(tile, next);
-  if (lockBtn && editor.tileId === tile.id) {
-    lockBtn.dataset.busy = next > 0 ? 'true' : 'false';
+  if (linkBtn && editor.tileId === tile.id) {
+    linkBtn.dataset.busy = next > 0 ? 'true' : 'false';
   }
-  console.info('[hold] setInFlight', { tile: tile.id, delta, prev, next });
 }
 
-function cacheMatches(c: StretchCacheEntry | undefined, tile: Tile, speed: number): boolean {
+function cacheMatches(c: StretchCacheEntry | undefined, tile: Tile, speed: number, pitch: number): boolean {
   if (!c) return false;
   return c.speed === speed
+    && c.pitch === pitch
     && c.sourceId === tile.sourceId
     && Math.abs(c.loopStart - tile.loopStart) < 1e-6
     && Math.abs(c.loopEnd - tile.loopEnd) < 1e-6;
 }
 
-// ── State accessors (used by audio-engine) ──────────────────────────
+// ── Math helpers ─────────────────────────────────────────────────────
+
+function naturalPitchFor(speed: number): number {
+  return 12 * Math.log2(speed);
+}
+function stretchFactor(speed: number, pitch: number): number {
+  return Math.pow(2, pitch / 12) / speed;
+}
+function rateFactor(pitch: number): number {
+  return Math.pow(2, pitch / 12);
+}
+
+// ── State accessors ──────────────────────────────────────────────────
 
 function state(tile: Tile): SpeedState {
   return tile.plugins.speed as SpeedState;
@@ -87,14 +106,12 @@ export function getSpeed(tile: Tile): number {
   return (tile.plugins.speed as SpeedState | undefined)?.speed ?? 1;
 }
 
-export function getPitchLock(tile: Tile): boolean {
-  return (tile.plugins.speed as SpeedState | undefined)?.pitchLock ?? false;
-}
+// ── Audio graph helpers ──────────────────────────────────────────────
 
-// Mount a pre-stretched buffer into the play context: BufferSource will run
-// at unity rate, the source-time → buffer-time mapping is divided by speed.
-function mountStretched(ctx: PlayContext, buffer: AudioBuffer, speed: number): void {
-  ctx.startOffset = Math.max(0, (ctx.startOffset - ctx.loopStart) / speed);
+function mountStretched(ctx: PlayContext, buffer: AudioBuffer, factor: number): void {
+  // ctx.startOffset is in buffer-time at this point (set up by audio-engine).
+  // The stretched buffer's time is the loop-region time multiplied by F.
+  ctx.startOffset = Math.max(0, (ctx.startOffset - ctx.loopStart) * factor);
   ctx.buffer = buffer;
   ctx.loopStart = 0;
   ctx.loopEnd = buffer.duration;
@@ -105,8 +122,6 @@ function sliceLoopRegion(ctx: BaseAudioContext, buffer: AudioBuffer, startSec: n
   const end = Math.min(buffer.length, Math.floor(endSec * buffer.sampleRate));
   const length = Math.max(1, end - start);
   const slice = ctx.createBuffer(buffer.numberOfChannels, length, buffer.sampleRate);
-  // copyFromChannel/copyToChannel lets engines avoid exposing the underlying
-  // storage as a JS-visible Float32Array.
   const tmp = new Float32Array(length);
   for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
     buffer.copyFromChannel(tmp, ch, start);
@@ -115,70 +130,58 @@ function sliceLoopRegion(ctx: BaseAudioContext, buffer: AudioBuffer, startSec: n
   return slice;
 }
 
-// Watchdog ceiling for progressive stretches. The underlying chunks may
-// still resolve after this fires; we just stop showing the busy state so
-// the user isn't stranded.
 const STRETCH_TIMEOUT_MS = 60_000;
 
 function debug(label: string, payload: Record<string, unknown> = {}): void {
-  console.info(`[hold] ${label}`, payload);
+  console.info(`[speed] ${label}`, payload);
 }
 
-// Mount the in-progress stretched buffer on this play context immediately
-// and dispatch chunks in the background. The BufferSourceNode reads from
-// the same memory the workers write into — wherever a chunk has landed,
-// audio plays; gaps are momentarily silent until the worker pool catches
-// up. The cache is populated synchronously so a subsequent play before
-// every chunk lands still re-uses the partially-filled buffer.
 function beginProgressiveStretch(
   tile: Tile,
   ctx: PlayContext,
   region: AudioBuffer,
   speed: number,
+  pitch: number,
+  factor: number,
 ): { buffer: AudioBuffer } {
   const myJobId = ++nextStretchJobId;
   stretchJobIds.set(tile, myJobId);
 
+  // Map current playhead (in seconds, buffer-time) → output-buffer-time so
+  // the priority chunk is the one the BufferSource will read first.
+  // p_in   = (ctx.startOffset - ctx.loopStart)              seconds in the loop region
+  // p_out  = p_in × F                                       seconds in the stretched output
+  // sample = p_out × sampleRate
   const priorityOffset = Math.max(
     0,
-    Math.floor(((ctx.startOffset - ctx.loopStart) / speed) * region.sampleRate),
+    Math.floor((ctx.startOffset - ctx.loopStart) * factor * region.sampleRate),
   );
 
   const { buffer, done, chunkCount } = stretchAudioBufferProgressive(
-    ctx.audioCtx, region, speed, priorityOffset,
+    ctx.audioCtx, region, /* tempo */ 1 / factor, priorityOffset,
   );
 
   stretchCache.set(tile, {
-    buffer, speed,
+    buffer, speed, pitch,
     loopStart: tile.loopStart, loopEnd: tile.loopEnd,
     sourceId: tile.sourceId,
   });
 
   debug('progressive stretch started', {
-    jobId: myJobId, tile: tile.id, speed,
+    jobId: myJobId, tile: tile.id, speed, pitch, factor,
     regionSamples: region.length, outSamples: buffer.length, chunks: chunkCount,
-    priorityOffset,
   });
 
   setInFlight(tile, +1);
-  const startedAt = performance.now();
-
   let settled = false;
   const watchdog = window.setTimeout(() => {
     if (settled) return;
     settled = true;
-    console.warn('[hold] progressive watchdog fired — not all chunks landed in time', {
-      jobId: myJobId, tile: tile.id, speed, timeoutMs: STRETCH_TIMEOUT_MS,
-    });
+    console.warn('[speed] watchdog fired', { jobId: myJobId, tile: tile.id });
     setInFlight(tile, -1);
   }, STRETCH_TIMEOUT_MS);
 
-  done.then(() => {
-    const elapsedMs = (performance.now() - startedAt) | 0;
-    debug('progressive stretch fully written', { jobId: myJobId, elapsedMs, chunks: chunkCount });
-  }).catch((err) => {
-    console.warn('[hold] progressive stretch errored', { jobId: myJobId, err });
-  }).finally(() => {
+  done.finally(() => {
     if (settled) return;
     settled = true;
     clearTimeout(watchdog);
@@ -190,53 +193,88 @@ function beginProgressiveStretch(
 
 // ── Live updates from UI / palette ────────────────────────────────────
 
-// Called by audio-engine on slider drag / typed override. Rebases position
-// across the rate change in pitched mode; debounces a rebuild in pitch-lock
-// mode (stretch is expensive so we don't run it per frame).
 export function setTileSpeed(tile: Tile, speed: number): void {
-  // Need playAudio for the rebuild path; import lazily to break the cycle.
   void import('../../audio/engine').then(({ getAudioPosition, playAudio }) => {
     const s = state(tile);
     if (speed === s.speed) return;
 
-    if (s.pitchLock) {
-      const pos = tile.audioSource ? getAudioPosition(tile) : tile.loopStart;
-      s.speed = speed;
-      if (tile.video) tile.video.playbackRate = speed;
-      applyTileSpeedDisplay(tile);
+    // Update state up-front, then either rebase the live BufferSource (if
+    // the new combination stays on the no-stretch fast path) or debounce
+    // a full rebuild (if it crosses into the stretch path).
+    s.speed = speed;
+    if (s.link) s.pitch = naturalPitchFor(speed);
+    if (tile.video) tile.video.playbackRate = speed;
+    applyTileSpeedDisplay(tile);
+    paintRate(speed);
+    paintPitch(s.pitch);
 
-      const prev = rebuildTimers.get(tile);
-      if (prev) clearTimeout(prev);
-      const timer = setTimeout(() => {
-        rebuildTimers.delete(tile);
-        if (state(tile).pitchLock && tile.audioSource) playAudio(tile, pos);
-      }, PITCHLOCK_DEBOUNCE_MS);
-      rebuildTimers.set(tile, timer);
-      return;
-    }
-
-    // Pitched: change BufferSource.playbackRate in place. Cheap, no rebuild.
-    if (tile.audioSource) {
+    const newFactor = stretchFactor(s.speed, s.pitch);
+    if (Math.abs(newFactor - 1) < STRETCH_NOOP_EPSILON && tile.audioSource) {
+      // Cheap path: live-update playbackRate, rebase the time origin so
+      // audio position stays continuous through the rate change.
       const pos = getAudioPosition(tile);
       tile.audioStartedOffset = pos;
       tile.audioStartedAt = getAudioCtx().currentTime;
-      tile.audioSource.playbackRate.value = speed;
+      tile.audioSource.playbackRate.value = rateFactor(s.pitch);
+      return;
     }
-    s.speed = speed;
-    if (tile.video) tile.video.playbackRate = speed;
-    applyTileSpeedDisplay(tile);
+
+    // Stretch path — debounce so a slider drag through many intermediate
+    // values doesn't kick off many stretch jobs.
+    const pos = tile.audioSource ? getAudioPosition(tile) : tile.loopStart;
+    const prev = rebuildTimers.get(tile);
+    if (prev) clearTimeout(prev);
+    const timer = setTimeout(() => {
+      rebuildTimers.delete(tile);
+      if (tile.audioSource) playAudio(tile, pos);
+    }, REBUILD_DEBOUNCE_MS);
+    rebuildTimers.set(tile, timer);
   });
 }
 
-export function setTilePitchLock(tile: Tile, locked: boolean): void {
+export function setTilePitch(tile: Tile, pitch: number): void {
+  void import('../../audio/engine').then(({ getAudioPosition, playAudio }) => {
+    const s = state(tile);
+    if (s.link) return;             // pitch is derived when linked
+    if (pitch === s.pitch) return;
+
+    s.pitch = pitch;
+    paintPitch(pitch);
+
+    const newFactor = stretchFactor(s.speed, s.pitch);
+    if (Math.abs(newFactor - 1) < STRETCH_NOOP_EPSILON && tile.audioSource) {
+      const pos = getAudioPosition(tile);
+      tile.audioStartedOffset = pos;
+      tile.audioStartedAt = getAudioCtx().currentTime;
+      tile.audioSource.playbackRate.value = rateFactor(s.pitch);
+      return;
+    }
+
+    const pos = tile.audioSource ? getAudioPosition(tile) : tile.loopStart;
+    const prev = rebuildTimers.get(tile);
+    if (prev) clearTimeout(prev);
+    const timer = setTimeout(() => {
+      rebuildTimers.delete(tile);
+      if (tile.audioSource) playAudio(tile, pos);
+    }, REBUILD_DEBOUNCE_MS);
+    rebuildTimers.set(tile, timer);
+  });
+}
+
+export function setTileLink(tile: Tile, link: boolean): void {
   const s = state(tile);
-  if (s.pitchLock === locked) return;
-  debug('setTilePitchLock', { tile: tile.id, from: s.pitchLock, to: locked, speed: s.speed, playing: !!tile.audioSource });
-  s.pitchLock = locked;
+  if (s.link === link) return;
+  debug('setTileLink', { tile: tile.id, from: s.link, to: link, speed: s.speed, pitch: s.pitch });
+  s.link = link;
+  if (link) {
+    // Snap pitch to the natural value for the current speed — that's the
+    // no-stretch path, F = 1.
+    s.pitch = naturalPitchFor(s.speed);
+    paintPitch(s.pitch);
+  }
   if (tile.audioSource) {
     void import('../../audio/engine').then(({ getAudioPosition, playAudio }) => {
-      const pos = getAudioPosition(tile);
-      playAudio(tile, pos);
+      playAudio(tile, getAudioPosition(tile));
     });
   }
 }
@@ -244,14 +282,16 @@ export function setTilePitchLock(tile: Tile, locked: boolean): void {
 // ── UI ────────────────────────────────────────────────────────────────
 
 let panel: HTMLElement | null = null;
-let track: HTMLElement | null = null;
-let readoutEl: HTMLElement | null = null;
-let lockBtn: HTMLButtonElement | null = null;
-let thumb: HTMLElement | null = null;
+let rateTrack: HTMLElement | null = null;
+let rateReadout: HTMLElement | null = null;
+let rateThumb: HTMLElement | null = null;
+let pitchTrack: HTMLElement | null = null;
+let pitchReadout: HTMLElement | null = null;
+let pitchThumb: HTMLElement | null = null;
+let linkBtn: HTMLButtonElement | null = null;
 
-function speedToFrac(speed: number): number {
-  return (Math.log2(speed) + 1) / 2;
-}
+// log-uniform mapping: slider 0..1 ↔ speed 0.5..2.0, with 0.5 → 1.0× at midpoint.
+function speedToFrac(speed: number): number { return (Math.log2(speed) + 1) / 2; }
 function fracToSpeed(frac: number): number {
   return Math.pow(2, 2 * Math.max(0, Math.min(1, frac)) - 1);
 }
@@ -261,15 +301,50 @@ function snapSliderSpeed(speed: number): number {
   return Math.round(clamped / SPEED_STEP) * SPEED_STEP;
 }
 
-function formatSpeed(s: number): string { return `${s.toFixed(2)}×`; }
+// linear mapping: slider 0..1 ↔ pitch -12..+12, with 0.5 → 0 semitones.
+function pitchToFrac(p: number): number { return (p + PITCH_MAX) / (PITCH_MAX - PITCH_MIN); }
+function fracToPitch(frac: number): number {
+  return (Math.max(0, Math.min(1, frac)) - 0.5) * (PITCH_MAX - PITCH_MIN);
+}
+function snapSliderPitch(p: number): number {
+  const clamped = Math.max(PITCH_MIN, Math.min(PITCH_MAX, p));
+  if (Math.abs(clamped) < PITCH_DEAD_ZONE) return 0;
+  return Math.round(clamped / PITCH_STEP) * PITCH_STEP;
+}
 
-function paint(speed: number): void {
-  if (!thumb || !readoutEl || !panel) return;
-  // Visual thumb pins to slider's range; typed values outside still apply.
+// Readout displays the *value only* — the unit ("×" / "ST") is a sibling
+// span in the markup so editing the readout never has to step over the
+// unit characters.
+function formatSpeed(s: number): string { return s.toFixed(2); }
+function formatPitch(p: number): string {
+  if (Math.abs(p) < 0.05) return '+0';
+  const sign = p > 0 ? '+' : '−';
+  const abs = Math.abs(p);
+  return `${sign}${abs % 1 === 0 ? abs.toFixed(0) : abs.toFixed(1)}`;
+}
+
+function paintRate(speed: number): void {
+  if (!rateThumb || !rateReadout || !panel) return;
   const frac = Math.max(0, Math.min(1, speedToFrac(speed)));
-  thumb.style.left = `${frac * 100}%`;
-  readoutEl.textContent = formatSpeed(speed);
-  panel.dataset.active = Math.abs(speed - 1) < 0.001 ? 'false' : 'true';
+  rateThumb.style.left = `${frac * 100}%`;
+  rateReadout.textContent = formatSpeed(speed);
+  panel.dataset.rateActive = Math.abs(speed - 1) < 0.001 ? 'false' : 'true';
+  panel.dataset.active = panel.dataset.rateActive === 'true' || panel.dataset.pitchActive === 'true' ? 'true' : 'false';
+}
+
+function paintPitch(pitch: number): void {
+  if (!pitchThumb || !pitchReadout || !panel) return;
+  const frac = Math.max(0, Math.min(1, pitchToFrac(pitch)));
+  pitchThumb.style.left = `${frac * 100}%`;
+  pitchReadout.textContent = formatPitch(pitch);
+  panel.dataset.pitchActive = Math.abs(pitch) < 0.05 ? 'false' : 'true';
+  panel.dataset.active = panel.dataset.rateActive === 'true' || panel.dataset.pitchActive === 'true' ? 'true' : 'false';
+}
+
+function paintLink(link: boolean): void {
+  if (!panel || !linkBtn) return;
+  panel.dataset.link = String(link);
+  linkBtn.setAttribute('aria-pressed', String(link));
 }
 
 function selectAll(el: HTMLElement): void {
@@ -280,46 +355,46 @@ function selectAll(el: HTMLElement): void {
   sel?.addRange(range);
 }
 
-function bindReadoutEdit(): void {
-  if (!readoutEl) return;
-  const r = readoutEl;
-
+function bindReadoutEdit(
+  el: HTMLElement,
+  parse: (raw: string) => number | null,
+  apply: (tile: Tile, v: number) => void,
+  current: (tile: Tile) => number,
+  format: (v: number) => string,
+  rawFormat: (v: number) => string,
+): void {
   const startEdit = () => {
     const tile = editor.tileId ? tiles.get(editor.tileId) : null;
     if (!tile) return;
-    r.textContent = state(tile).speed.toFixed(2);
-    r.setAttribute('contenteditable', 'true');
-    r.focus();
-    selectAll(r);
+    el.textContent = rawFormat(current(tile));
+    el.setAttribute('contenteditable', 'true');
+    el.focus();
+    selectAll(el);
   };
-
   const endEdit = (commit: boolean) => {
-    if (r.getAttribute('contenteditable') !== 'true') return;
+    if (el.getAttribute('contenteditable') !== 'true') return;
     const tile = editor.tileId ? tiles.get(editor.tileId) : null;
-    let next = tile ? state(tile).speed : 1;
-
+    let next = tile ? current(tile) : 0;
     if (commit && tile) {
-      const raw = (r.textContent ?? '').replace(/[×x\s]/gi, '');
-      const parsed = parseFloat(raw);
-      if (isFinite(parsed) && parsed > 0) {
+      const parsed = parse(el.textContent ?? '');
+      if (parsed !== null) {
         next = parsed;
-        setTileSpeed(tile, next);
+        apply(tile, next);
         saveManifest();
       }
     }
-    r.removeAttribute('contenteditable');
-    r.blur();
-    paint(next);
+    el.removeAttribute('contenteditable');
+    el.blur();
+    el.textContent = format(next);
   };
-
-  r.addEventListener('dblclick', (e) => { e.preventDefault(); startEdit(); });
-  r.addEventListener('keydown', (e) => {
-    if (r.getAttribute('contenteditable') !== 'true') return;
-    if (e.key === 'Enter') { e.preventDefault(); endEdit(true); }
-    else if (e.key === 'Escape') { e.preventDefault(); endEdit(false); }
+  el.addEventListener('dblclick', (e) => { e.preventDefault(); startEdit(); });
+  el.addEventListener('keydown', (e) => {
+    if (el.getAttribute('contenteditable') !== 'true') return;
+    if (e.key === 'Enter')      { e.preventDefault(); endEdit(true);  }
+    else if (e.key === 'Escape'){ e.preventDefault(); endEdit(false); }
     e.stopPropagation();
   });
-  r.addEventListener('blur', () => endEdit(true));
+  el.addEventListener('blur', () => endEdit(true));
 }
 
 // ── Plugin definition ────────────────────────────────────────────────
@@ -329,19 +404,23 @@ const plugin: TilePlugin = {
 
   bind() {
     panel = document.getElementById('speed-panel');
-    track = document.getElementById('speed-track');
-    readoutEl = document.getElementById('speed-readout');
-    lockBtn = document.getElementById('speed-lock') as HTMLButtonElement | null;
-    thumb = track?.querySelector<HTMLElement>('.speed-thumb') ?? null;
+    rateTrack   = document.getElementById('speed-track');
+    rateReadout = document.getElementById('speed-readout');
+    rateThumb   = rateTrack?.querySelector<HTMLElement>('.speed-thumb') ?? null;
+    pitchTrack   = document.getElementById('pitch-track');
+    pitchReadout = document.getElementById('pitch-readout');
+    pitchThumb   = pitchTrack?.querySelector<HTMLElement>('.speed-thumb') ?? null;
+    linkBtn = document.getElementById('speed-link') as HTMLButtonElement | null;
 
-    if (track && panel) {
-      const t = track;
+    // ── Rate slider ───────────────────────────────────────────
+    if (rateTrack && panel) {
+      const t = rateTrack;
       const p = panel;
       bindSliderDrag(t, {
         start: () => {
           const tile = editor.tileId ? tiles.get(editor.tileId) : null;
           if (!tile) return false;
-          p.dataset.state = 'dragging';
+          p.dataset.stateRate = 'dragging';
         },
         move: (x, _y, rect) => {
           const tile = editor.tileId ? tiles.get(editor.tileId) : null;
@@ -349,104 +428,157 @@ const plugin: TilePlugin = {
           const frac = (x - rect.left) / rect.width;
           const s = snapSliderSpeed(fracToSpeed(frac));
           setTileSpeed(tile, s);
-          paint(s);
         },
-        end: () => {
-          p.dataset.state = '';
-          saveManifest();
-        },
+        end: () => { p.dataset.stateRate = ''; saveManifest(); },
       });
       t.addEventListener('dblclick', (e) => {
         e.preventDefault();
         const tile = editor.tileId ? tiles.get(editor.tileId) : null;
         if (!tile) return;
         setTileSpeed(tile, 1.0);
-        paint(1.0);
         saveManifest();
       });
     }
 
-    bindReadoutEdit();
+    // ── Pitch slider ──────────────────────────────────────────
+    if (pitchTrack && panel) {
+      const t = pitchTrack;
+      const p = panel;
+      bindSliderDrag(t, {
+        start: () => {
+          const tile = editor.tileId ? tiles.get(editor.tileId) : null;
+          if (!tile) return false;
+          if (state(tile).link) return false;   // disabled when linked
+          p.dataset.statePitch = 'dragging';
+        },
+        move: (x, _y, rect) => {
+          const tile = editor.tileId ? tiles.get(editor.tileId) : null;
+          if (!tile) return;
+          if (state(tile).link) return;
+          const frac = (x - rect.left) / rect.width;
+          const v = snapSliderPitch(fracToPitch(frac));
+          setTilePitch(tile, v);
+        },
+        end: () => { p.dataset.statePitch = ''; saveManifest(); },
+      });
+      t.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+        const tile = editor.tileId ? tiles.get(editor.tileId) : null;
+        if (!tile) return;
+        if (state(tile).link) return;
+        setTilePitch(tile, 0);
+        saveManifest();
+      });
+    }
 
-    lockBtn?.addEventListener('click', () => {
+    // ── Typed-in numeric overrides ────────────────────────────
+    if (rateReadout) {
+      bindReadoutEdit(
+        rateReadout,
+        (raw) => {
+          const v = parseFloat(raw.replace(/[×x\s]/gi, ''));
+          return isFinite(v) && v > 0 ? v : null;
+        },
+        (tile, v) => setTileSpeed(tile, v),
+        (tile) => state(tile).speed,
+        formatSpeed,
+        (v) => v.toFixed(2),
+      );
+    }
+    if (pitchReadout) {
+      bindReadoutEdit(
+        pitchReadout,
+        (raw) => {
+          // Unicode minus (used in the formatted display) → ASCII so
+          // parseFloat sees the sign. Then strip everything else.
+          const normalised = raw.replace(/−/g, '-').replace(/[stST\s+]/g, '');
+          const v = parseFloat(normalised);
+          return isFinite(v) ? v : null;
+        },
+        (tile, v) => { if (!state(tile).link) setTilePitch(tile, v); },
+        (tile) => state(tile).pitch,
+        formatPitch,
+        (v) => v.toFixed(1),
+      );
+    }
+
+    // ── LINK toggle ───────────────────────────────────────────
+    linkBtn?.addEventListener('click', () => {
       const tile = editor.tileId ? tiles.get(editor.tileId) : null;
       if (!tile) return;
-      const next = !state(tile).pitchLock;
-      setTilePitchLock(tile, next);
-      lockBtn!.setAttribute('aria-pressed', String(next));
+      const next = !state(tile).link;
+      setTileLink(tile, next);
+      paintLink(next);
       saveManifest();
     });
 
-    paint(1.0);
+    paintRate(1.0);
+    paintPitch(0);
+    paintLink(true);
   },
 
   defaultState(): SpeedState {
-    return { speed: 1, pitchLock: false };
+    return { speed: 1, pitch: 0, link: true };
   },
 
   serialize(s: unknown): unknown {
     const v = s as SpeedState;
-    if (v.speed === 1 && !v.pitchLock) return undefined;
-    return { speed: v.speed, pitchLock: v.pitchLock };
+    // Default state isn't worth persisting.
+    if (v.speed === 1 && v.pitch === 0 && v.link === true) return undefined;
+    return { speed: v.speed, pitch: v.pitch, link: v.link };
   },
 
   hydrate(raw: unknown): SpeedState | undefined {
-    if (raw && typeof raw === 'object') {
-      const r = raw as { speed?: unknown; pitchLock?: unknown };
-      const speed = typeof r.speed === 'number' && isFinite(r.speed) && r.speed > 0 ? r.speed : 1;
-      const pitchLock = r.pitchLock === true;
-      return { speed, pitchLock };
+    if (!raw || typeof raw !== 'object') return undefined;
+    const r = raw as { speed?: unknown; pitch?: unknown; link?: unknown; pitchLock?: unknown };
+    const speed = typeof r.speed === 'number' && isFinite(r.speed) && r.speed > 0 ? r.speed : 1;
+    // New shape carries explicit pitch + link. Older shape carries pitchLock:
+    // pitchLock = true  →  pitch held at 0 while speed shifts → link off, pitch 0
+    // pitchLock = false →  pitch follows speed naturally       → link on
+    if (typeof r.link === 'boolean') {
+      const pitch = typeof r.pitch === 'number' && isFinite(r.pitch) ? r.pitch : (r.link ? naturalPitchFor(speed) : 0);
+      return { speed, pitch, link: r.link };
     }
-    return undefined;
+    if (r.pitchLock === true)  return { speed, pitch: 0,                       link: false };
+    if (r.pitchLock === false) return { speed, pitch: naturalPitchFor(speed),  link: true  };
+    return { speed, pitch: naturalPitchFor(speed), link: true };
   },
 
   loadForTile(tile: Tile): void {
     const s = state(tile);
-    paint(s.speed);
-    if (lockBtn) {
-      lockBtn.setAttribute('aria-pressed', String(s.pitchLock));
-      lockBtn.dataset.busy = (inFlight.get(tile) ?? 0) > 0 ? 'true' : 'false';
-    }
+    paintRate(s.speed);
+    paintPitch(s.pitch);
+    paintLink(s.link);
+    if (linkBtn) linkBtn.dataset.busy = (inFlight.get(tile) ?? 0) > 0 ? 'true' : 'false';
   },
 
   onPlay(tile: Tile, ctx: PlayContext): void {
     const s = state(tile);
-    const useStretch = s.pitchLock && Math.abs(s.speed - 1) > 0.001;
-    if (useStretch) {
-      const cached = stretchCache.get(tile);
-      if (cacheMatches(cached, tile, s.speed)) {
-        debug('onPlay cache HIT', { tile: tile.id, speed: s.speed });
-        mountStretched(ctx, cached!.buffer, s.speed);
-        ctx.source.playbackRate.value = 1.0;
-      } else {
-        debug('onPlay cache MISS', {
-          tile: tile.id, speed: s.speed,
-          hasCached: !!cached,
-          cachedSpeed: cached?.speed,
-          tileLoop: { start: tile.loopStart, end: tile.loopEnd },
-          cachedLoop: cached ? { start: cached.loopStart, end: cached.loopEnd } : null,
-        });
-        // Kick off a progressive stretch and mount the partially-filled
-        // buffer right now. As workers fill in chunks the buffer's contents
-        // become audible in place — BufferSourceNode reads from this same
-        // memory. Silent windows shrink as priority chunk lands first.
-        const region = sliceLoopRegion(ctx.audioCtx, ctx.buffer, ctx.loopStart, ctx.loopEnd);
-        const { buffer } = beginProgressiveStretch(tile, ctx, region, s.speed);
-        mountStretched(ctx, buffer, s.speed);
-        ctx.source.playbackRate.value = 1.0;
-      }
+    const F = stretchFactor(s.speed, s.pitch);
+    const R = rateFactor(s.pitch);
+
+    if (Math.abs(F - 1) < STRETCH_NOOP_EPSILON) {
+      // No-stretch path. Covers LINK on (by construction) and any
+      // hand-set (speed, pitch) combo where pitch ≈ 12·log2(speed).
+      ctx.source.playbackRate.value = R;
     } else {
-      ctx.source.playbackRate.value = s.speed;
+      const cached = stretchCache.get(tile);
+      if (cacheMatches(cached, tile, s.speed, s.pitch)) {
+        mountStretched(ctx, cached!.buffer, F);
+        ctx.source.playbackRate.value = R;
+      } else {
+        const region = sliceLoopRegion(ctx.audioCtx, ctx.buffer, ctx.loopStart, ctx.loopEnd);
+        const { buffer } = beginProgressiveStretch(tile, ctx, region, s.speed, s.pitch, F);
+        mountStretched(ctx, buffer, F);
+        ctx.source.playbackRate.value = R;
+      }
     }
     if (tile.video) tile.video.playbackRate = s.speed;
   },
 
   teardownTile(tile: Tile): void {
     const t = rebuildTimers.get(tile);
-    if (t) {
-      clearTimeout(t);
-      rebuildTimers.delete(tile);
-    }
+    if (t) { clearTimeout(t); rebuildTimers.delete(tile); }
     stretchCache.delete(tile);
     stretchJobIds.delete(tile);
   },
