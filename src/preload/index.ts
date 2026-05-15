@@ -28,6 +28,7 @@ const api: LoopDecApi = {
   getCacheInfo: () => ipcRenderer.invoke('get-cache-info'),
   setMaxCache: (gb) => ipcRenderer.invoke('set-max-cache', gb),
   clearCache: () => ipcRenderer.invoke('clear-cache'),
+  rebuildAudioCache: (clipId) => ipcRenderer.invoke('rebuild-audio-cache', clipId),
   getYtDlpVersion: () => ipcRenderer.invoke('get-ytdlp-version'),
   getFfmpegVersion: () => ipcRenderer.invoke('get-ffmpeg-version'),
   forceCheckUpdates: () => ipcRenderer.invoke('force-check-updates'),

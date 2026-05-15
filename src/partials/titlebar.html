@@ -1,0 +1,25 @@
+<header id="titlebar">
+  <div class="win-controls">
+    <button class="win-btn win-close" id="win-close" title="Close"></button>
+    <button class="win-btn win-minimize" id="win-minimize" title="Minimize"></button>
+    <button class="win-btn win-maximize" id="win-maximize" title="Maximize"></button>
+  </div>
+  <button id="menu-btn" title="Menu">&#9776;</button>
+  <svg class="lo-mark lo-mark-sm" aria-hidden="true" focusable="false"><use href="#loopdec-mark"/></svg>
+  <span id="app-title">LoopDec</span>
+  <span id="deck-name"></span>
+  <form id="url-form" autocomplete="off">
+    <input
+      id="url-input"
+      type="url"
+      placeholder="Paste a YouTube URL and press Enter"
+      spellcheck="false"
+      autofocus
+    />
+  </form>
+  <div id="master-transport">
+    <button class="transport-btn" id="play-all-btn" title="Play all">&#9654;</button>
+    <button class="transport-btn" id="stop-all-btn" title="Stop all">&#9632;</button>
+    <button class="transport-btn" id="sync-btn" title="Sync all to loop start">&#8635;</button>
+  </div>
+</header>

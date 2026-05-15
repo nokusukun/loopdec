@@ -1,5 +1,5 @@
 import type { Source, Tile, DeckMeta } from './types';
-import { deckNameEl, emptyState, clipsContainer } from './dom';
+import { deckNameEl, emptyState, clipsContainer } from './ui/dom';
 
 let emptyStateHook: (() => void) | null = null;
 export function onEmptyStateEnter(fn: () => void): void { emptyStateHook = fn; }

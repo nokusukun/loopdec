@@ -1,0 +1,77 @@
+/* First-run binary setup overlay */
+#setup-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-deep);
+  z-index: 400;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  -webkit-app-region: drag;
+}
+#setup-overlay.open { display: flex; }
+
+#setup-card {
+  -webkit-app-region: no-drag;
+  width: 420px;
+  max-width: calc(100vw - 32px);
+  padding: 24px 28px;
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+#setup-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+#setup-subtitle {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+.setup-bin-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+.setup-bin-name {
+  flex: 0 0 64px;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+}
+.setup-bin-status {
+  flex: 1;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.setup-progress {
+  height: 4px;
+  background: var(--bg-elevated);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+.setup-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+  transition: width 0.15s ease-out;
+}
+.setup-bin-row[data-state="done"] .setup-progress-fill { background: var(--playing); width: 100%; }
+.setup-bin-row[data-state="done"] .setup-bin-status { color: var(--playing); }
+.setup-bin-row[data-state="error"] .setup-bin-status { color: var(--led-mute); }
+
+#setup-error {
+  font-size: 11px;
+  color: var(--led-mute);
+  font-family: var(--font-mono);
+  display: none;
+}
+#setup-error.show { display: block; }

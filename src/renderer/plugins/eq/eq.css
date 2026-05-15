@@ -1,0 +1,205 @@
+/* 8-band graphic EQ — recessed LCD panel feel. Pads dB scale, segmented
+   amber fill from the 0 dB centerline, hover/drag state classes on each band. */
+
+#eq-panel {
+  --eq-readout-h: 13px;
+  --eq-freq-h: 14px;
+  flex: 1;
+  min-height: 0;
+  background: var(--bg-screen);
+  box-shadow: inset 0 0 0 1px var(--border-subtle), inset 0 1px 2px oklch(0 0 0 / 0.5);
+  padding: 8px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.eq-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 16px;
+  flex-shrink: 0;
+}
+.eq-title {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.32em;
+  color: var(--text-secondary);
+}
+.eq-status {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: var(--text-muted);
+  transition: color 0.12s ease-out;
+}
+#eq-panel[data-active="true"] .eq-status { color: var(--accent); }
+
+.eq-reset-btn {
+  height: 16px;
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.02);
+}
+.eq-reset-btn:hover {
+  background: var(--bg-hover);
+  color: var(--accent);
+  border-color: var(--accent-muted);
+}
+.eq-reset-btn:active {
+  background: var(--bg-base);
+  box-shadow: inset 0 1px 2px oklch(0 0 0 / 0.4);
+}
+
+.eq-stage {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 26px 1fr;
+  gap: 8px;
+  min-height: 0;
+}
+
+/* dB scale aligned with the gridlines inside the band tracks. The first
+   and last labels sit on the top/bottom edges; the middle aligns with 0 dB. */
+.eq-scale {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: var(--eq-readout-h) 0 var(--eq-freq-h);
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+.eq-scale-zero { color: var(--text-secondary); }
+
+.eq-bands {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 3px;
+  min-height: 0;
+}
+.eq-band {
+  display: grid;
+  grid-template-rows: var(--eq-readout-h) 1fr var(--eq-freq-h);
+  align-items: stretch;
+  min-width: 0;
+  user-select: none;
+}
+.eq-readout {
+  height: var(--eq-readout-h);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: center;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  opacity: 0;
+  transition: opacity 0.1s ease-out;
+  line-height: var(--eq-readout-h);
+}
+.eq-band[data-state="active"] .eq-readout,
+.eq-band[data-state="dragging"] .eq-readout { opacity: 1; }
+
+.eq-track {
+  position: relative;
+  background: oklch(0.05 0.005 60);
+  box-shadow: inset 0 0 0 1px var(--border-subtle);
+  cursor: ns-resize;
+  overflow: hidden;
+  transition: background 0.1s ease-out, box-shadow 0.1s ease-out;
+}
+.eq-track:hover {
+  background: oklch(0.07 0.008 80);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.eq-band[data-state="dragging"] .eq-track {
+  background: oklch(0.09 0.02 80);
+  box-shadow: inset 0 0 0 1px var(--accent-muted);
+}
+
+/* Gridlines: 0 dB centerline (strong), ±6 dB (faint). ±12 = track edges. */
+.eq-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(to bottom, transparent calc(50% - 0.5px), var(--text-muted) calc(50% - 0.5px), var(--text-muted) calc(50% + 0.5px), transparent calc(50% + 0.5px)),
+    linear-gradient(to bottom, transparent calc(25% - 0.5px), var(--border-subtle) calc(25% - 0.5px), var(--border-subtle) calc(25% + 0.5px), transparent calc(25% + 0.5px)),
+    linear-gradient(to bottom, transparent calc(75% - 0.5px), var(--border-subtle) calc(75% - 0.5px), var(--border-subtle) calc(75% + 0.5px), transparent calc(75% + 0.5px));
+  opacity: 0.55;
+}
+
+/* Segmented amber fill grows from centerline. Repeating gradient = LED meter feel. */
+.eq-fill {
+  position: absolute;
+  left: calc(50% - 6px);
+  width: 12px;
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      var(--accent) 0,
+      var(--accent) 2px,
+      oklch(0.05 0.005 60) 2px,
+      oklch(0.05 0.005 60) 3px
+    );
+  pointer-events: none;
+  transition: top 0.06s linear, height 0.06s linear, filter 0.15s ease-out;
+}
+.eq-band[data-state="active"] .eq-fill,
+.eq-band[data-state="dragging"] .eq-fill {
+  filter: drop-shadow(0 0 3px var(--accent-glow));
+}
+
+.eq-thumb {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  height: 5px;
+  background: var(--text-muted);
+  box-shadow: 0 0 0 1px oklch(0 0 0 / 0.55), inset 0 1px 0 oklch(1 0 0 / 0.08);
+  transform: translateY(-2.5px);
+  pointer-events: none;
+  transition: top 0.06s linear, background 0.1s ease-out, box-shadow 0.15s ease-out;
+}
+.eq-band[data-state="active"] .eq-thumb {
+  background: var(--accent);
+  box-shadow: 0 0 0 1px oklch(0 0 0 / 0.55), 0 0 5px var(--accent-glow), inset 0 1px 0 oklch(1 0 0 / 0.2);
+}
+.eq-band[data-state="dragging"] .eq-thumb {
+  background: var(--accent-hover);
+  box-shadow: 0 0 0 1px oklch(0 0 0 / 0.55), 0 0 7px var(--accent-glow), inset 0 1px 0 oklch(1 0 0 / 0.25);
+}
+
+.eq-freq {
+  height: var(--eq-freq-h);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  transition: color 0.12s ease-out;
+}
+.eq-band[data-state="active"] .eq-freq,
+.eq-band[data-state="dragging"] .eq-freq { color: var(--accent); }

@@ -39,6 +39,7 @@ export interface LoopDecApi {
   getCacheInfo(): Promise<CacheInfo>;
   setMaxCache(gb: number): Promise<boolean>;
   clearCache(): Promise<number>;
+  rebuildAudioCache(clipId: string): Promise<boolean>;
   getYtDlpVersion(): Promise<{ version: string | null }>;
   getFfmpegVersion(): Promise<{ version: string | null }>;
   forceCheckUpdates(): Promise<boolean>;

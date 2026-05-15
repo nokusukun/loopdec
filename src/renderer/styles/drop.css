@@ -1,0 +1,67 @@
+/* Drop overlay (files dragged onto the window) */
+#drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 350;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: oklch(0.06 0.005 60 / 0.92);
+  pointer-events: none;
+  animation: drop-fade 0.18s ease-out;
+}
+body[data-dropping="true"] #drop-overlay { display: flex; }
+
+@keyframes drop-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.drop-frame {
+  position: relative;
+  padding: 56px 64px;
+  border: 2px dashed var(--accent);
+  background: oklch(0.08 0.005 60 / 0.85);
+  box-shadow: 0 0 32px oklch(0.80 0.14 80 / 0.18), inset 0 0 0 1px oklch(0 0 0 / 0.4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  animation: drop-pulse 1.6s ease-in-out infinite;
+}
+@keyframes drop-pulse {
+  0%, 100% { box-shadow: 0 0 32px oklch(0.80 0.14 80 / 0.18), inset 0 0 0 1px oklch(0 0 0 / 0.4); }
+  50%      { box-shadow: 0 0 48px oklch(0.80 0.14 80 / 0.35), inset 0 0 0 1px oklch(0 0 0 / 0.4); }
+}
+
+.drop-headline {
+  font-family: var(--font-mono);
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--accent);
+  line-height: 1;
+}
+.drop-subline {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+.drop-formats {
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  max-width: 480px;
+  text-align: center;
+  line-height: 1.7;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #drop-overlay, .drop-frame { animation: none !important; }
+}

@@ -97,4 +97,17 @@ export function registerCacheHandlers(): void {
     }
     return getCacheSize();
   });
+
+  // Drop all derived audio files (chunk segments, extracted audio, peaks) for
+  // one clip. The source .mp4 is left untouched so we don't re-download.
+  // Caller is expected to re-run extract-audio afterwards.
+  ipcMain.handle('rebuild-audio-cache', async (_event, clipId: string): Promise<boolean> => {
+    if (typeof clipId !== 'string' || !/^src_\d+_\d+$/.test(clipId)) return false;
+    for (const file of getCacheFiles()) {
+      if (!file.name.startsWith(clipId + '_')) continue;
+      if (file.name === `${clipId}.mp4`) continue;
+      safeUnlink(file.path);
+    }
+    return true;
+  });
 }

@@ -7,7 +7,10 @@ export const MANIFEST_PATH = path.join(app.getPath('userData'), 'manifest.json')
 export const SETTINGS_PATH = path.join(app.getPath('userData'), 'settings.json');
 export const RECENT_DECKS_PATH = path.join(app.getPath('userData'), 'recent-decks.json');
 
-export const CHUNK_DURATION = 60;
+// Sampler loops are typically 1–30s, so chunks are sized so a single chunk
+// can usually carry a whole loop. Keeps decoded working memory small per pad
+// and bounds the pitch-lock stretch input.
+export const CHUNK_DURATION = 5;
 export const CHUNK_THRESHOLD = 30 * 1024 * 1024;
 export const DEFAULT_MAX_CACHE = 10 * 1024 * 1024 * 1024;
 

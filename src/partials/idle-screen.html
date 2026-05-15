@@ -1,0 +1,50 @@
+<section id="idle-screen" aria-label="Instrument idle">
+  <header class="idle-brand">
+    <div class="lo-headline">
+      <svg class="lo-mark lo-mark-lg" aria-hidden="true" focusable="false"><use href="#loopdec-mark"/></svg>
+      <h1>LOOPDEC</h1>
+    </div>
+    <p class="idle-tagline">v<span id="idle-version">1.0.0</span> &middot; YouTube loop sampler</p>
+  </header>
+
+  <section class="idle-section">
+    <h2><span>System</span></h2>
+    <ul class="idle-status" id="idle-status">
+      <li data-state="loading">
+        <span class="idle-led"></span>
+        <span class="idle-status-name">yt-dlp</span>
+        <span class="idle-status-value" id="idle-ytdlp">checking&hellip;</span>
+      </li>
+      <li data-state="loading">
+        <span class="idle-led"></span>
+        <span class="idle-status-name">ffmpeg</span>
+        <span class="idle-status-value" id="idle-ffmpeg">checking&hellip;</span>
+      </li>
+      <li data-state="loading">
+        <span class="idle-led"></span>
+        <span class="idle-status-name">cache</span>
+        <span class="idle-status-value" id="idle-cache">checking&hellip;</span>
+      </li>
+    </ul>
+  </section>
+
+  <section class="idle-section">
+    <h2><span>Recent</span></h2>
+    <ul class="idle-recent" id="idle-recent">
+      <li class="idle-recent-empty">No decks saved yet. Build a session, then save it with <kbd>&#8984;P</kbd> &rsaquo; Save Deck.</li>
+    </ul>
+  </section>
+
+  <section class="idle-section idle-section-keys">
+    <h2><span>Start</span></h2>
+    <ul class="idle-keys">
+      <li>
+        <span class="idle-arrow" aria-hidden="true">&#9650;</span>
+        <span class="idle-key-text">Paste a YouTube URL into the bar above</span>
+      </li>
+      <li><kbd>&#8984;P</kbd><span class="idle-key-text">command palette</span></li>
+      <li><kbd>SPC</kbd><span class="idle-key-text">play / stop all</span></li>
+      <li><kbd>ESC</kbd><span class="idle-key-text">close any open panel</span></li>
+    </ul>
+  </section>
+</section>

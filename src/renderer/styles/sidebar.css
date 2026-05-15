@@ -1,0 +1,363 @@
+/* Sidebar */
+#sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: oklch(0.09 0.006 60 / 0.5);
+  z-index: 150;
+  display: none;
+}
+
+#sidebar-overlay.open { display: block; }
+
+#sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 300px;
+  background: var(--bg-base);
+  border-right: 1px solid var(--border);
+  z-index: 151;
+  transform: translateX(-100%);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+#sidebar.open { transform: translateX(0); }
+
+#sidebar::-webkit-scrollbar { width: 4px; }
+#sidebar::-webkit-scrollbar-thumb { background: var(--bg-elevated); border-radius: 2px; }
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.sidebar-header h2 {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.sidebar-section {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.sidebar-section-title {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-primary);
+  transition: color 0.1s ease-out;
+}
+
+.sidebar-item:hover { color: var(--accent); }
+
+.sidebar-item-hint {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.sidebar-recent {
+  padding: 2px 0;
+}
+
+.sidebar-recent-name {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.sidebar-recent:hover .sidebar-recent-name { color: var(--accent); }
+
+/* Settings rows */
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0;
+  gap: 8px;
+}
+
+.setting-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.setting-input {
+  width: 80px;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  outline: none;
+  text-align: right;
+}
+
+.setting-input:focus { border-color: var(--accent-muted); }
+
+.setting-select {
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  outline: none;
+  cursor: pointer;
+}
+
+.setting-select:focus { border-color: var(--accent-muted); }
+
+.setting-info {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* Segmented toggle — three sampler-style buttons sharing one chassis. The
+   selected segment is amber-lit, the others stay etched. */
+.setting-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.02);
+}
+.setting-toggle-btn {
+  width: 28px;
+  height: 24px;
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--border);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+.setting-toggle-btn:last-child { border-right: none; }
+.setting-toggle-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.setting-toggle-btn[aria-checked="true"] {
+  background: oklch(0.18 0.02 80);
+  color: var(--accent);
+}
+
+/* Panel-button used for settings actions (rebuild cache, etc). Matches the
+   etched sampler aesthetic of .snap-btn / .tile-btn but sized to align with
+   the .setting-input row height. */
+.setting-btn {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  height: 24px;
+  min-width: 96px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.02);
+  transition: background 0.1s, color 0.1s, border-color 0.1s, box-shadow 0.15s;
+}
+.setting-btn:hover {
+  background: var(--bg-hover);
+  color: var(--accent);
+  border-color: var(--accent-muted);
+}
+.setting-btn:active {
+  background: var(--bg-base);
+  box-shadow: inset 0 1px 2px oklch(0 0 0 / 0.4);
+}
+.setting-btn:disabled { cursor: progress; }
+
+.setting-btn-label { position: relative; z-index: 1; }
+
+/* Status tally: filled circle that color-shifts to match operation state. */
+.setting-btn-status {
+  position: relative;
+  z-index: 1;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  box-shadow: inset 0 0 0 0.5px oklch(0 0 0 / 0.55);
+  transition: background 0.15s, box-shadow 0.2s;
+  flex-shrink: 0;
+}
+.setting-btn-status[data-state="running"] {
+  background: var(--accent);
+  box-shadow: inset 0 0 0 0.5px oklch(0 0 0 / 0.55), 0 0 4px var(--accent-glow);
+  animation: setting-btn-pulse 0.9s ease-in-out infinite;
+}
+.setting-btn-status[data-state="done"] {
+  background: var(--led-play);
+  box-shadow: inset 0 0 0 0.5px oklch(0 0 0 / 0.55), 0 0 4px var(--led-play);
+}
+.setting-btn-status[data-state="error"] {
+  background: var(--led-mute);
+  box-shadow: inset 0 0 0 0.5px oklch(0 0 0 / 0.55), 0 0 4px var(--led-mute);
+}
+@keyframes setting-btn-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
+}
+
+/* Scanning raster behind the label while the action is in flight — same
+   visual language as the HOLD button's busy state. Anchors the eye to the
+   running action without shifting the label. */
+.setting-btn[data-state="running"]::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    oklch(0.92 0.18 80 / 0.0)  38%,
+    oklch(0.92 0.18 80 / 0.45) 49%,
+    oklch(0.96 0.20 80 / 0.85) 50%,
+    oklch(0.92 0.18 80 / 0.45) 51%,
+    oklch(0.92 0.18 80 / 0.0)  62%,
+    transparent 100%
+  );
+  mix-blend-mode: screen;
+  transform: translate3d(-100%, 0, 0);
+  animation: setting-btn-scan 1.05s cubic-bezier(0.42, 0, 0.58, 1) infinite;
+  will-change: transform;
+}
+.setting-btn[data-state="running"] {
+  color: var(--accent);
+  border-color: var(--accent-muted);
+}
+
+/* Progress readout (N/M) — printed below the label area via attr() so it
+   doesn't need extra DOM. Shown only while the action is running. */
+.setting-btn[data-state="running"][data-progress]::after {
+  content: attr(data-progress);
+  position: absolute;
+  right: 4px;
+  bottom: 1px;
+  z-index: 1;
+  font-family: var(--font-mono);
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+  pointer-events: none;
+}
+@keyframes setting-btn-scan {
+  0%   { transform: translate3d(-100%, 0, 0); }
+  82%  { transform: translate3d( 100%, 0, 0); }
+  100% { transform: translate3d( 100%, 0, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .setting-btn[data-state="running"]::before { animation: none; transform: none; opacity: 0.3; }
+  .setting-btn-status[data-state="running"] { animation: none; }
+}
+
+/* Virtual cable hint: shown only when no virtual audio devices are detected. */
+#virtual-cable-hint {
+  display: none;
+  margin: -2px 0 6px;
+  padding: 8px 10px;
+  background: var(--bg-base);
+  box-shadow: inset 0 0 0 1px var(--border-subtle);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.55;
+  color: var(--text-muted);
+  letter-spacing: 0.01em;
+}
+#virtual-cable-hint[data-visible="true"] { display: block; }
+#virtual-cable-hint p {
+  margin: 0 0 6px;
+}
+#virtual-cable-hint ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+#virtual-cable-hint li {
+  display: none;
+  font-variant-numeric: tabular-nums;
+}
+/* Show only the row matching the host platform; data-os set on <html> at startup. */
+html[data-os="win"]   #virtual-cable-hint li[data-os="win"],
+html[data-os="mac"]   #virtual-cable-hint li[data-os="mac"],
+html[data-os="linux"] #virtual-cable-hint li[data-os="linux"] {
+  display: block;
+}
+#virtual-cable-hint a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+#virtual-cable-hint a:hover { text-decoration: underline; }
+
+.shortcut-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+  font-size: 12px;
+}
+
+.shortcut-key {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.shortcut-action {
+  color: var(--text-secondary);
+}

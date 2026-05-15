@@ -1,0 +1,192 @@
+/* Per-tile speed control. Compact horizontal slider with log-mapped track
+   (0.5×–2× → frac 0–1, 1.0× at midpoint), numeric readout (editable on
+   double-click), and a HOLD toggle for pitch-preserving time-stretch. */
+
+#speed-panel {
+  flex-shrink: 0;
+  background: var(--bg-screen);
+  box-shadow: inset 0 0 0 1px var(--border-subtle), inset 0 1px 2px oklch(0 0 0 / 0.5);
+  padding: 0 10px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.speed-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.32em;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+.speed-track {
+  flex: 1;
+  position: relative;
+  height: 18px;
+  background: oklch(0.05 0.005 60);
+  box-shadow: inset 0 0 0 1px var(--border-subtle);
+  cursor: ew-resize;
+  overflow: hidden;
+  transition: background 0.1s ease-out, box-shadow 0.1s ease-out;
+}
+.speed-track:hover {
+  background: oklch(0.07 0.008 80);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.speed-detent {
+  position: absolute;
+  top: 0; bottom: 0; left: 50%;
+  width: 1px;
+  background: var(--text-muted);
+  transform: translateX(-0.5px);
+  pointer-events: none;
+  opacity: 0.55;
+}
+.speed-thumb {
+  position: absolute;
+  top: 3px; bottom: 3px;
+  width: 5px;
+  background: var(--text-muted);
+  box-shadow: 0 0 0 1px oklch(0 0 0 / 0.55), inset 1px 0 0 oklch(1 0 0 / 0.08);
+  transform: translateX(-2.5px);
+  pointer-events: none;
+  transition: left 0.06s linear, background 0.1s ease-out, box-shadow 0.15s ease-out;
+}
+#speed-panel[data-active="true"] .speed-thumb {
+  background: var(--accent);
+  box-shadow: 0 0 0 1px oklch(0 0 0 / 0.55), 0 0 5px var(--accent-glow), inset 1px 0 0 oklch(1 0 0 / 0.2);
+}
+#speed-panel[data-state="dragging"] .speed-thumb {
+  background: var(--accent-hover);
+  box-shadow: 0 0 0 1px oklch(0 0 0 / 0.55), 0 0 7px var(--accent-glow), inset 1px 0 0 oklch(1 0 0 / 0.25);
+}
+.speed-readout {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  width: 52px;
+  text-align: right;
+  flex-shrink: 0;
+  transition: color 0.12s ease-out, box-shadow 0.12s ease-out;
+  cursor: text;
+  padding: 1px 3px;
+  margin: -1px -3px;
+}
+#speed-panel[data-active="true"] .speed-readout { color: var(--accent); }
+.speed-readout[contenteditable="true"] {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--accent);
+  color: var(--accent);
+  caret-color: var(--accent);
+  cursor: text;
+  user-select: text;
+}
+
+/* HOLD toggle — sampler-style "preserve pitch" button. */
+.speed-lock-btn {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  height: 20px;
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  cursor: pointer;
+  flex-shrink: 0;
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.02);
+  transition: background 0.1s, color 0.1s, border-color 0.1s, box-shadow 0.15s;
+}
+/* Keep the label above the scan layer. */
+.speed-lock-btn > * { position: relative; z-index: 1; }
+.speed-lock-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+.speed-lock-btn[aria-pressed="true"] {
+  background: oklch(0.16 0.03 80);
+  color: var(--accent);
+  border-color: var(--accent-muted);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.04), 0 0 6px var(--accent-glow);
+}
+.speed-lock-btn[aria-pressed="true"]:hover {
+  color: var(--accent-hover);
+  border-color: var(--accent);
+}
+.speed-lock-btn:active {
+  background: var(--bg-base);
+  box-shadow: inset 0 1px 2px oklch(0 0 0 / 0.4);
+}
+
+/* "Computing" state — a raster scan sweeps across the button face while the
+   stretch runs in the worker. Constant-width: the HOLD label never shifts.
+   Pure transform animation → composited, no layout work. */
+.speed-lock-btn[data-busy="true"]::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  /* Hot stripe with a soft halo around it. Reads as a CRT raster line moving
+     across the panel face. Tighter falloff than a generic shimmer so it
+     scans rather than smears. */
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    oklch(0.92 0.18 80 / 0.0)  38%,
+    oklch(0.92 0.18 80 / 0.55) 49%,
+    oklch(0.96 0.20 80 / 0.95) 50%,
+    oklch(0.92 0.18 80 / 0.55) 51%,
+    oklch(0.92 0.18 80 / 0.0)  62%,
+    transparent 100%
+  );
+  /* Screen blend so the stripe brightens on amber (HOLD active) AND on the
+     neutral fill (HOLD off-but-stretching), no special-case styles. */
+  mix-blend-mode: screen;
+  transform: translate3d(-100%, 0, 0);
+  animation: speed-lock-scan 1.05s cubic-bezier(0.42, 0, 0.58, 1) infinite;
+  will-change: transform;
+}
+
+/* A pair of LCD tick marks at the bottom edge — quiet under the moving
+   scanline, locks the eye on the button so the user knows where to look. */
+.speed-lock-btn[data-busy="true"]::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  z-index: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    90deg,
+    var(--accent) 0 2px,
+    transparent  2px 6px
+  );
+  opacity: 0.55;
+}
+
+@keyframes speed-lock-scan {
+  /* Linear sweep with a brief settle at the right edge before re-entering. */
+  0%   { transform: translate3d(-100%, 0, 0); }
+  82%  { transform: translate3d( 100%, 0, 0); }
+  100% { transform: translate3d( 100%, 0, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .speed-lock-btn[data-busy="true"]::before {
+    animation: none;
+    transform: none;
+    opacity: 0.35;
+  }
+}

@@ -1,0 +1,294 @@
+/* Waveform editor (sample-edit screen) — fixed-bottom recessed panel */
+#waveform-panel {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 252px;
+  background: var(--bg-base);
+  border-top: 1px solid var(--border-strong);
+  box-shadow: 0 -1px 0 oklch(1 0 0 / 0.02), 0 -8px 24px oklch(0 0 0 / 0.4);
+  transform: translateY(100%);
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 12px 10px;
+  gap: 8px;
+}
+
+#waveform-panel.open {
+  transform: translateY(0);
+}
+
+#waveform-header {
+  display: flex;
+  align-items: center;
+  height: 26px;
+  flex-shrink: 0;
+  gap: 10px;
+}
+
+/* Title cluster — EDIT tag · pad address · source title */
+.waveform-title-cluster {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.waveform-edit-tag {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  padding: 3px 6px 2px;
+  background: var(--accent);
+  color: var(--bg-deep);
+  flex-shrink: 0;
+  line-height: 1;
+}
+.waveform-address {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+#waveform-panel[data-playing="true"] .waveform-edit-tag { background: var(--led-play); }
+#waveform-panel[data-playing="true"] .waveform-address { color: var(--led-play); }
+
+#waveform-title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.02em;
+}
+
+/* LCD-style IN/OUT readout */
+#waveform-times {
+  display: flex;
+  gap: 12px;
+  flex-shrink: 0;
+  align-items: stretch;
+  padding: 3px 8px;
+  background: var(--bg-screen);
+  box-shadow: inset 0 1px 2px oklch(0 0 0 / 0.5), inset 0 0 0 1px var(--border-subtle);
+}
+.wf-time {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.wf-time-label {
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--text-muted);
+}
+.wf-time span:last-child {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+}
+#waveform-panel[data-playing="true"] .wf-time span:last-child { color: var(--led-play); }
+
+#waveform-close {
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+  line-height: 1;
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.02);
+  flex-shrink: 0;
+}
+#waveform-close:hover {
+  background: var(--bg-hover);
+  color: var(--led-mute);
+  border-color: var(--led-mute-dim);
+}
+
+/* Snap & offset rows (etched panel buttons) */
+#waveform-snap, #waveform-offset {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  padding: 0 7px;
+  border-left: 1px solid var(--border-subtle);
+  border-right: 1px solid var(--border-subtle);
+  height: 22px;
+}
+
+.snap-btn {
+  height: 20px;
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.08s, color 0.08s, border-color 0.08s;
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.02);
+}
+.snap-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+.snap-btn:active {
+  background: var(--bg-base);
+  box-shadow: inset 0 1px 2px oklch(0 0 0 / 0.4);
+}
+.snap-btn.active {
+  background: oklch(0.18 0.02 80);
+  color: var(--accent);
+  border-color: var(--accent-muted);
+}
+
+#snap-custom, #snap-offset {
+  width: 52px;
+  height: 20px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-screen);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  outline: none;
+  box-shadow: inset 0 1px 2px oklch(0 0 0 / 0.4);
+  font-variant-numeric: tabular-nums;
+}
+#snap-custom::placeholder { color: var(--text-muted); font-weight: 500; }
+#snap-custom:focus, #snap-offset:focus {
+  border-color: var(--accent-muted);
+  box-shadow: inset 0 1px 2px oklch(0 0 0 / 0.4), 0 0 0 1px var(--accent-muted);
+}
+#snap-custom.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+#waveform-offset label {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  margin-right: 2px;
+}
+
+#snap-offset-tap {
+  height: 20px;
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.08s, color 0.08s, border-color 0.08s;
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.02);
+}
+#snap-offset-tap:hover {
+  background: var(--bg-hover);
+  color: var(--accent);
+  border-color: var(--accent-muted);
+}
+#snap-offset-tap:active {
+  background: var(--bg-base);
+  box-shadow: inset 0 1px 2px oklch(0 0 0 / 0.4);
+}
+
+/* Minimap — viewport navigator strip */
+#waveform-minimap {
+  width: 100%;
+  height: 22px;
+  background: var(--bg-screen);
+  box-shadow: inset 0 1px 2px oklch(0 0 0 / 0.5), inset 0 0 0 1px var(--border-subtle);
+  position: relative;
+  cursor: pointer;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+#waveform-minimap canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.minimap-viewport {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background: oklch(0.80 0.14 80 / 0.12);
+  border-left: 1px solid var(--accent);
+  border-right: 1px solid var(--accent);
+  pointer-events: none;
+}
+.minimap-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 1px;
+  background: oklch(0.95 0.005 60);
+  transform: translateX(0);
+  pointer-events: none;
+  will-change: transform;
+  opacity: 0;
+}
+
+/* Main waveform canvas + tile params rack */
+#waveform-content {
+  flex: 1;
+  display: flex;
+  gap: 8px;
+  min-height: 0;
+}
+
+#waveform-canvas {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: block;
+  background: var(--bg-screen);
+  box-shadow: inset 0 1px 2px oklch(0 0 0 / 0.5), inset 0 0 0 1px var(--border-subtle);
+  cursor: crosshair;
+}
+
+/* Per-tile parameter rack (right side of editor). Plugin panels mount inside. */
+#tile-params {
+  width: 320px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+}

@@ -1,0 +1,36 @@
+<div id="waveform-panel" data-playing="false">
+  <div id="waveform-header">
+    <div class="waveform-title-cluster">
+      <span class="waveform-edit-tag">EDIT</span>
+      <span class="waveform-address" id="waveform-address">--</span>
+      <span id="waveform-title"></span>
+    </div>
+    <div id="waveform-snap">
+      <button class="snap-btn active" data-snap="0">OFF</button>
+      <button class="snap-btn" data-snap="0.25">0.25S</button>
+      <button class="snap-btn" data-snap="0.5">0.5S</button>
+      <button class="snap-btn" data-snap="1">1S</button>
+      <button class="snap-btn" data-snap="5">5S</button>
+      <input id="snap-custom" type="number" step="0.01" min="0.01" placeholder="custom" title="Custom snap interval (seconds)" />
+    </div>
+    <div id="waveform-offset">
+      <label for="snap-offset">OFS</label>
+      <input id="snap-offset" type="number" step="0.01" value="0" title="Grid offset (seconds) — drag horizontally to adjust" class="drag-number" />
+      <button id="snap-offset-tap" title="Tap to set offset from current playhead position">TAP</button>
+    </div>
+    <button id="waveform-fit" class="snap-btn" title="Reset zoom to fit full clip">FIT</button>
+    <div id="waveform-times">
+      <div class="wf-time"><span class="wf-time-label">IN</span><span id="waveform-time-start">0:00</span></div>
+      <div class="wf-time"><span class="wf-time-label">OUT</span><span id="waveform-time-end">0:00</span></div>
+    </div>
+    <button id="waveform-close" title="Close (Esc)">&times;</button>
+  </div>
+  <div id="waveform-minimap"></div>
+  <div id="waveform-content">
+    <canvas id="waveform-canvas"></canvas>
+    <div id="tile-params">
+      <!-- @include renderer/plugins/speed/speed.html -->
+      <!-- @include renderer/plugins/eq/eq.html -->
+    </div>
+  </div>
+</div>

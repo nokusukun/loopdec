@@ -1,0 +1,105 @@
+@import url('https://fonts.bunny.net/css?family=martian-mono:300,400,500,600,700&display=swap');
+
+/* Reset */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* Color system (OKLCH) — warm-dark sampler panel */
+:root {
+  --bg-deep:      oklch(0.09 0.006 60);
+  --bg-base:      oklch(0.125 0.005 60);
+  --bg-surface:   oklch(0.165 0.005 60);
+  --bg-elevated:  oklch(0.21 0.004 60);
+  --bg-hover:     oklch(0.25 0.004 60);
+  --bg-screen:    oklch(0.055 0.005 60);
+
+  --text-primary:   oklch(0.87 0.004 60);
+  --text-secondary: oklch(0.55 0.006 60);
+  --text-muted:     oklch(0.38 0.005 60);
+
+  /* Accent: LCD amber, not YouTube-red */
+  --accent:       oklch(0.80 0.14 80);
+  --accent-hover: oklch(0.86 0.16 80);
+  --accent-muted: oklch(0.42 0.08 80);
+  --accent-glow:  oklch(0.80 0.14 80 / 0.35);
+
+  /* LED palette */
+  --led-power:      oklch(0.78 0.13 80);
+  --led-power-dim:  oklch(0.28 0.03 80);
+  --led-play:       oklch(0.74 0.18 145);
+  --led-play-dim:   oklch(0.26 0.03 145);
+  --led-mute:       oklch(0.66 0.16 30);
+  --led-mute-dim:   oklch(0.26 0.04 30);
+  --led-ready:      oklch(0.65 0.07 75);
+  --led-ready-dim:  oklch(0.25 0.02 75);
+  --led-busy:       oklch(0.58 0.14 75);
+
+  --playing:      var(--led-play);
+  --playing-dim:  var(--led-play-dim);
+
+  --border:       oklch(0.21 0.004 60);
+  --border-subtle:oklch(0.155 0.003 60);
+  --border-strong:oklch(0.30 0.005 60);
+
+  --font-sans: 'Martian Mono', ui-monospace, "SF Mono", "Cascadia Mono", "Menlo", "Consolas", monospace;
+  --font-mono: 'Martian Mono', ui-monospace, "SF Mono", "Cascadia Mono", "Menlo", "Consolas", monospace;
+}
+
+/* Body */
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 1.4;
+  font-feature-settings: "tnum" 1, "ss01" 1;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Brand mark — 2×2 pad bank, diagonal pads filled. Sized in em so it scales
+   naturally next to its sibling wordmark; color inherited so the same shape
+   reads neutral in chrome and amber on the idle hero. */
+.lo-mark {
+  display: inline-block;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+.lo-mark-sm {
+  width: 13px;
+  height: 13px;
+  color: var(--text-secondary);
+}
+.lo-mark-lg {
+  width: 30px;
+  height: 30px;
+  color: var(--accent);
+}
+.lo-headline {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Draggable number input */
+.drag-number { cursor: ew-resize; }
+
+/* Focus styles */
+button:focus-visible, input:focus-visible {
+  outline: 2px solid var(--accent-muted);
+  outline-offset: 1px;
+}
+
+button, .tile-btn, .tile-loop-indicator, .tile-title {
+  user-select: none;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}

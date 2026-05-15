@@ -4,4 +4,5 @@ package-lock.json
 *.dec
 bin/
 dist/
+Trace-*.json
 !docs/screenshots/*.png

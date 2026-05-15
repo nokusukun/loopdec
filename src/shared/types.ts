@@ -20,14 +20,12 @@ export interface TilePersisted {
   volume: number;
   row?: number;
   col?: number;
-  // 8-band graphic EQ gains in dB, one per fixed band (see EQ_BANDS in audio-engine).
-  // Omitted on legacy decks → defaults to flat [0,0,0,0,0,0,0,0] on load.
+  // Per-plugin persisted state, keyed by plugin id (e.g. "eq", "speed").
+  // Each plugin owns its payload shape via serialize/hydrate.
+  plugins?: Record<string, unknown>;
+  // Legacy fields — still read by plugin hydration paths for back-compat.
   eq?: number[];
-  // Playback rate multiplier. 1.0 = normal. Currently pitched (changes pitch with speed).
-  // Range 0.5–2.0 enforced by the UI. Omitted on legacy decks → defaults to 1.
   speed?: number;
-  // When true, speed changes preserve pitch (time-stretched via OLA). When false,
-  // BufferSource.playbackRate changes pitch with speed (sampler/varispeed feel).
   pitchLock?: boolean;
 }
 

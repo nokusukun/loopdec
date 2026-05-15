@@ -1,24 +1,27 @@
 // Renderer entry. Imports here run in order — each `bind*` attaches DOM listeners
 // to elements that already exist (this script runs at end of <body>).
 
-import './dom'; // ensures DOM refs throw early if any are missing
-import { bindWindowControls } from './window-controls';
-import { bindSetupOverlay } from './setup-overlay';
-import { bindTransport } from './transport';
-import { bindWaveform } from './waveform';
-import { bindSnap } from './snap';
-import { bindSidebar } from './sidebar';
-import { bindSettings, restoreSettings } from './settings';
-import { bindPalette } from './palette';
-import { bindKeyboard } from './keyboard';
-import { bindUrlInput } from './url-input';
-import { bindDownloadProgress } from './download-progress';
-import { bindIdle } from './idle';
-import { bindEq } from './eq';
-import { bindSpeed } from './speed';
-import { bindLocalFiles } from './local-files';
-import { restoreOutputDevice, applyStoredDeviceToContext } from './audio-output';
-import { onAudioContextCreated } from './audio-context';
+import './styles'; // global CSS — bundled to dist/renderer.css by esbuild
+import './ui/dom'; // ensures DOM refs throw early if any are missing
+import { bindWindowControls } from './ui/window-controls';
+import { bindSetupOverlay } from './ui/setup-overlay';
+import { bindTransport } from './audio/transport';
+import { bindWaveform } from './ui/waveform';
+import { bindSnap } from './ui/snap';
+import { bindSidebar } from './ui/sidebar';
+import { bindSettings, restoreSettings } from './ui/settings';
+import { bindPalette } from './ui/palette';
+import { bindKeyboard } from './ui/keyboard';
+import { bindUrlInput } from './ui/url-input';
+import { bindDownloadProgress } from './ui/download-progress';
+import { bindIdle } from './ui/idle';
+import { bindPlugins } from './plugins/registry';
+import './plugins/eq';
+import './plugins/speed';
+import { bindLocalFiles } from './ui/local-files';
+import { bindPan } from './ui/pan';
+import { restoreOutputDevice, applyStoredDeviceToContext } from './audio/output';
+import { onAudioContextCreated } from './audio/context';
 import { updateEmptyState } from './state';
 
 bindWindowControls();
@@ -33,9 +36,9 @@ bindKeyboard();
 bindUrlInput();
 bindDownloadProgress();
 bindIdle();
-bindEq();
-bindSpeed();
+bindPlugins();
 bindLocalFiles();
+bindPan();
 
 // Tag the host OS so platform-specific hints (e.g. the virtual-cable suggestion
 // in audio settings) can show only the relevant entry without touching JS.
