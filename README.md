@@ -108,4 +108,4 @@ Managed yt-dlp / ffmpeg binaries live in `bin/` next to the app executable (or n
 
 ## License
 
-ISC. Personal project — use, modify, fork freely. No warranty.
+GPL-2.0. See [LICENSE](LICENSE).
